@@ -1,1 +1,9 @@
-original_study/
+original_study/labour-market/*
+!original_study/labour-market/.gitkeep
+
+original_study/mental-health/*
+!original_study/mental-health/.gitkeep
+
+original_study/mental-health.zip
+
+
