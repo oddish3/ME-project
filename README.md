@@ -1,6 +1,6 @@
 # Microeconometrics Empirical Project
 
-**Author:** Sol Yates
+**Author:** SY, PS, CS
 
 Microeconometrics group empirical project looking at new DiD estimators upon social media outcomes.
 
