@@ -40,6 +40,7 @@ This structure aims to keep the project organized and facilitate reproducibility
 
 Download and install GitHub Desktop from GitHub Desktop's official website.
 After installation, open GitHub Desktop and sign in with your GitHub credentials.
+
 2. Clone the Repository
 
 In GitHub Desktop, navigate to File > Clone Repository.
@@ -74,11 +75,13 @@ After making your desired changes or contributions to the project:
 Open GitHub Desktop; it will automatically detect the changes.
 Review the changes listed, select the files you wish to commit, and write a brief, descriptive commit message explaining your contributions.
 Click on Commit to main (or the relevant branch you're working on).
+
 3. Push Changes
 
 To upload your commits to the GitHub repository, click Push origin.
 
 # Updating Your Local Repository
+
 1. Fetch Changes
 
 Regularly check for updates from the remote repository by clicking Repository > Fetch origin in GitHub Desktop.
