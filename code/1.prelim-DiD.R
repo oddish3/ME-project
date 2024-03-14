@@ -20,10 +20,11 @@ library(dplyr)
 library(broom)
 library(fastDummies)
 
-# Data
-setwd('/home/oddish3/Documents/R_folder/MSc/ME/proj2/submission')
+# Data 
+
+
 # load dataset + filter
-analysis_sample <- read_dta("data/output/analysis_sample.dta") %>%
+analysis_sample <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta") %>%
   filter(twfe_sample == 1)
 
 # Script
