@@ -8,7 +8,7 @@ Microeconometrics group empirical project looking at new DiD estimators upon soc
 
 The project directory is organized as follows:
 ```
-Microeconometrics Empirical Project/
+ME-project/
 ├── README.md
 ├── data
 │   ├── raw
