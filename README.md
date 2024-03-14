@@ -29,13 +29,13 @@ ME-project/
 
 This structure aims to keep the project organized and facilitate reproducibility of the analysis.
 
-## To Reproduce
+## Initial Setup
 1. clone this repo
 2. download (https://www.dropbox.com/scl/fi/j9kc5i7b3n9j0uk2uo0a3/submission.zip?rlkey=dxuea6cmuuz0rupy0kyscay7c&dl=0) and place in 'ME-project/original_study/labour-market'
 3. download (https://www.dropbox.com/scl/fi/tm50lcbanogamxtrfylhl/mental-health.zip?rlkey=piowcv5yc9y6ly865ndcyxqbr&dl=0) and place in 'ME-project/original_study/mental-health'
 4. open code.Rproj under 'ME-project/code'
 
-# Initial Setup
+
 1. Install GitHub Desktop
 
 Download and install GitHub Desktop from GitHub Desktop's official website.
@@ -64,7 +64,7 @@ Extract mental-health.zip and place its contents into ME-project/original_study/
 Navigate to the ME-project/code directory within the cloned repository.
 Open code.Rproj to begin working on the project in RStudio.
 
-# Contributing to the Repository
+## Contributing to the Repository
 
 1. Make Changes
 
@@ -80,7 +80,7 @@ Click on Commit to main (or the relevant branch you're working on).
 
 To upload your commits to the GitHub repository, click Push origin.
 
-# Updating Your Local Repository
+## Updating Your Local Repository
 
 1. Fetch Changes
 
