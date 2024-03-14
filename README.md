@@ -32,5 +32,5 @@ This structure aims to keep the project organized and facilitate reproducibility
 ## To Reproduce
 1. clone this repo
 2. download (https://www.dropbox.com/scl/fi/j9kc5i7b3n9j0uk2uo0a3/submission.zip?rlkey=dxuea6cmuuz0rupy0kyscay7c&dl=0) and place in 'ME-project/original_study/labour-market'
-3. download (https://www.dropbox.com/scl/fi/tm50lcbanogamxtrfylhl/mental-health.zip?rlkey=piowcv5yc9y6ly865ndcyxqbr&dl=0) and place in 'https://www.dropbox.com/scl/fi/tm50lcbanogamxtrfylhl/mental-health.zip?rlkey=piowcv5yc9y6ly865ndcyxqbr&dl=0'
-
+3. download (https://www.dropbox.com/scl/fi/tm50lcbanogamxtrfylhl/mental-health.zip?rlkey=piowcv5yc9y6ly865ndcyxqbr&dl=0) and place in 'ME-project/original_study/mental-health'
+4. open code.Rproj under 'ME-project/code'
