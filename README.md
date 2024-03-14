@@ -14,16 +14,13 @@ ME-project/
 │   ├── raw
 │   └── processed
 ├── original_study
-│   ├── README.md
-│   ├── data
-│   │   ├── raw
-│   │   └── processed
-│   └── scripts
+│   ├── labour-market
+│   ├── mental-health
 ├── docs
 │   ├── figures
 │   └── tex_files
 ├── code
-│   ├── 01_data_cleaning.R
+│   ├── 01_data_cleaning.R (etc)
 │   ├── 02_analysis.R
 │   └── 03_visualization.R
 ├── results
