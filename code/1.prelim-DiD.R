@@ -85,39 +85,8 @@ analysis_sample <- fastDummies::dummy_cols(analysis_sample, select_columns = "si
 simpletiershock_star <- grep("^simpletiershock_", names(analysis_sample), value = TRUE)
 
 
-did_estout <- function(data) {
-  # Run the DiD analysis using did_multiplegt
-  did_results <- did_multiplegt(
-    df = data,
-    Y = k_rank,
-    G = UNITID,
-    T = AY_FALL,
-    D = EXPOSED,
-    controls = c(k_married, simpletiershock_star, eqopp_demos, ipeds_demos),
-    brep = 10,
-    cluster = UNITID,
-    dynamic = TRUE  # Assuming robust_dynamic means estimating dynamic effects
-  )
-  
-  # Extract the DiD estimates and their variances
-  did_estimates <- did_results$estimates
-  did_variances <- vcov(did_results)
-  
-  # Store the number of observations
-  n_obs <- nrow(data)
-  
-  # Create a list to store the results
-  did_output <- list(
-    "estimates" = did_estimates,
-    "variances" = did_variances,
-    "n_obs" = n_obs
-  )
-  
-  return(did_output)
-}
 
-# Placeholder for storing models, similar to eststo in Stata
-models <- list()
+
 
 ##### models ----
 
@@ -157,27 +126,26 @@ summary(m2)
 # subset data
 analysis_sample_sub <- analysis_sample[analysis_sample$AY_FALL <= 2001, ]
 
+
 Y <- "k_rank"
 G <- "UNITID"
 T <- "AY_FALL"
 D <- "EXPOSED"
 controls <- c(eqopp_demos, simpletiershock_star, ipeds_demos)
 
-did_multiplegt(
+did_results <- did_multiplegt(
   df = analysis_sample,
   Y = Y,
   G = G,
   T = T,
   D = D,
-  controls = controls
+  controls = controls, 
+  dynamic   = 4,                  # no. of post-treatment periods
+  placebo   = 4,                  # no. of pre-treatment periods
+  brep      = 10,                  # no. of bootstraps (required for SEs)
+  cluster   = 'UNITID',                # variable to cluster SEs on
+  parallel  = TRUE                 # run the bootstraps in parallel
 )
-
-
-
-
-
-
-
 
 
 
