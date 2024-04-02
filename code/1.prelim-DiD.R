@@ -54,10 +54,10 @@ major_controls <- c(major_controls, "gradrate_150p")
 #modify k rank variable
 analysis_sample$k_rank <- analysis_sample$k_rank * 100
 # 'panel data setup'
-analysis_sample <- analysis_sample %>% group_by(UNITID, AY_FALL)
+# analysis_sample <- analysis_sample %>% group_by(UNITID, AY_FALL)
  #  or
-library(plm)
-pdata <- pdata.frame(analysis_sample, index = c("UNITID", "AY_FALL"))
+# library(plm)
+# pdata <- pdata.frame(analysis_sample, index = c("UNITID", "AY_FALL"))
 
 #excluding a specific observation 
 analysis_sample <- filter(analysis_sample, UNITID != 184694)
@@ -133,33 +133,37 @@ T <- "AY_FALL"
 D <- "EXPOSED"
 controls <- c(eqopp_demos, simpletiershock_star, ipeds_demos)
 
-did_multiplegt(
-  df = analysis_sample,
-  Y = Y,
-  G = G,
-  T = T,
-  D = D,
-  controls = controls
-)
-
-#### !!!!!
-# uncomment at your own risk - i am not sure why this doesnt work
-
-# 
-# did_results <- did_multiplegt(
-#   df = analysis_sample,
+# results <-did_multiplegt( #no SEs until next script
+#   df = analysis_sample_sub,
 #   Y = Y,
 #   G = G,
 #   T = T,
 #   D = D,
-#   controls = controls, 
-#   dynamic   = 4,                  # no. of post-treatment periods
-#   placebo   = 4,                  # no. of pre-treatment periods
-#   brep      = 10,                  # no. of bootstraps (required for SEs)
-#   cluster   = 'UNITID',                # variable to cluster SEs on
-#   parallel  = TRUE                 # run the bootstraps in parallel
+#   controls = controls
 # )
 
+
+
+#### !!!!! takes a while to run
+
+# 
+analysis_sample1 <- analysis_sample_sub
+
+results1 <- did_multiplegt(
+  df = analysis_sample1,
+  Y = Y,
+  G = G,
+  T = T,
+  D = D,
+  controls = controls,
+  brep      = 10,                  # no. of bootstraps (required for SEs)
+  cluster   = 'UNITID',                # variable to cluster SEs on
+  parallel  = TRUE                 # run the bootstraps in parallel
+)
+
+summary(m1) #1 more ob
+summary(m2) # 100 mroe ob
+results1
 
 
 
