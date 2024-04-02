@@ -133,22 +133,32 @@ T <- "AY_FALL"
 D <- "EXPOSED"
 controls <- c(eqopp_demos, simpletiershock_star, ipeds_demos)
 
-did_results <- did_multiplegt(
+did_multiplegt(
   df = analysis_sample,
   Y = Y,
   G = G,
   T = T,
   D = D,
-  controls = controls, 
-  dynamic   = 4,                  # no. of post-treatment periods
-  placebo   = 4,                  # no. of pre-treatment periods
-  brep      = 10,                  # no. of bootstraps (required for SEs)
-  cluster   = 'UNITID',                # variable to cluster SEs on
-  parallel  = TRUE                 # run the bootstraps in parallel
+  controls = controls
 )
 
+#### !!!!!
+# uncomment at your own risk - i am not sure why this doesnt work
 
-
+# 
+# did_results <- did_multiplegt(
+#   df = analysis_sample,
+#   Y = Y,
+#   G = G,
+#   T = T,
+#   D = D,
+#   controls = controls, 
+#   dynamic   = 4,                  # no. of post-treatment periods
+#   placebo   = 4,                  # no. of pre-treatment periods
+#   brep      = 10,                  # no. of bootstraps (required for SEs)
+#   cluster   = 'UNITID',                # variable to cluster SEs on
+#   parallel  = TRUE                 # run the bootstraps in parallel
+# )
 
 
 
