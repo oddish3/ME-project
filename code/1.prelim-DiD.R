@@ -9,16 +9,25 @@
 
 rm(list = ls()) 
 
-# Packages  
-library(dplyr)
-library(haven)
-library(magrittr)
-library(tidyverse)
-library(fixest)
-library(did)
-library(dplyr)
-library(broom)
-library(fastDummies)
+# Packages
+if (!requireNamespace("pacman", quietly = TRUE)) {
+  install.packages("pacman")
+}
+
+pacman::p_load(dplyr, haven, magrittr, tidyverse, fixest, did, broom, fastDummies, sandwich, lmtest)
+
+
+# DID_MULTIPLEGT FUNCTION 
+# Ensure remotes is available for GitHub installations
+pacman::p_load(remotes)
+
+# Install DIDmultiplegt from GitHub if not already installed
+if (!"DIDmultiplegt" %in% rownames(installed.packages())) {
+  remotes::install_github("shuo-zhang-ucsb/did_multiplegt")
+}
+
+# Load DIDmultiplegt
+pacman::p_load(DIDmultiplegt)
 
 # Data 
 
@@ -29,6 +38,7 @@ analysis_sample <- read_dta("../original_study/labour-market/data/output/analysi
 
 # Script
 # ==============================================================================
+
 # create_exhbits_do (creating macro) ----
 
 eqopp_demos <- c("k_married", "par_q1", "par_q2", "par_q3", "par_q4", "par_d9",
@@ -65,19 +75,114 @@ analysis_sample$simplebarrons <- dplyr::recode(analysis_sample$simplebarrons,
 analysis_sample$simpletiershock <- as.integer(interaction(analysis_sample$simplebarrons, analysis_sample$AY_FALL, drop = TRUE))
 
 
-# ============================
 #  DiD model 
-# ============================
+set.seed(9)
+
+# Create dummy variables for simpletiershock
 analysis_sample <- fastDummies::dummy_cols(analysis_sample, select_columns = "simpletiershock")
-# Get names of all dummy variables excluding one (e.g., exclude the first dummy variable)
-dummy_vars <- grep("simpletiershock_", names(analysis_sample), value = TRUE)[-1]  # Excludes the first dummy variable
+
+# Get names of all dummy variables 
+simpletiershock_star <- grep("^simpletiershock_", names(analysis_sample), value = TRUE)
+
+
+did_estout <- function(data) {
+  # Run the DiD analysis using did_multiplegt
+  did_results <- did_multiplegt(
+    df = data,
+    Y = k_rank,
+    G = UNITID,
+    T = AY_FALL,
+    D = EXPOSED,
+    controls = c(k_married, simpletiershock_star, eqopp_demos, ipeds_demos),
+    brep = 10,
+    cluster = UNITID,
+    dynamic = TRUE  # Assuming robust_dynamic means estimating dynamic effects
+  )
+  
+  # Extract the DiD estimates and their variances
+  did_estimates <- did_results$estimates
+  did_variances <- vcov(did_results)
+  
+  # Store the number of observations
+  n_obs <- nrow(data)
+  
+  # Create a list to store the results
+  did_output <- list(
+    "estimates" = did_estimates,
+    "variances" = did_variances,
+    "n_obs" = n_obs
+  )
+  
+  return(did_output)
+}
+
+# Placeholder for storing models, similar to eststo in Stata
+models <- list()
+
+##### models ----
+
+# filter data
+analysis_sample_filtered <- subset(analysis_sample, late_adopter == 0)
+
+# Define vectors for 'eqopp_demos' and 'ipeds_demos' as before
+eqopp_demos <- c("k_married", "par_q1", "par_q2", "par_q3", "par_q4", "par_d9", "par_top10pc", "par_top5pc", "par_top1pc", "par_toppt1pc", "par_rank")
+ipeds_demos <- c("female", "hispanic", "asian", "black", "nativeamerican", "alien", "unknown", "satmt25", "satmt75", "mi_sat", "use_act_score", "admssn_rate", "mi_admission_rate")
+
+# Dynamically construct your formula
+independent_vars <- c("EXPOSED", eqopp_demos, ipeds_demos)
+formula_str <- paste("k_rank ~", paste(independent_vars, collapse = " + "), "| UNITID + simpletiershock")
+# Note: If 'k_married' should not be doubly included, adjust 'eqopp_demos' accordingly
+
+# Use the formula with the feols function
+m1 <- feols(as.formula(formula_str), data = analysis_sample_filtered, vcov = "cluster")
+
+# Print the summary
+summary(m1)
+
+
+# model 2
+
+# Dynamically construct your formula for m2 (same as m1 if variables are unchanged)
+independent_vars_m2 <- c("EXPOSED", "k_married", eqopp_demos, ipeds_demos)
+formula_str_m2 <- paste("k_rank ~", paste(independent_vars_m2, collapse = " + "), "| UNITID + simpletiershock")
+
+# Use the formula with the feols function for m2
+m2 <- feols(as.formula(formula_str_m2), data = analysis_sample, vcov = "cluster")
+
+# Print the summary for m2
+summary(m2)
+
+# model 3
+
+# subset data
+analysis_sample_sub <- analysis_sample[analysis_sample$AY_FALL <= 2001, ]
+
+Y <- "k_rank"
+G <- "UNITID"
+T <- "AY_FALL"
+D <- "EXPOSED"
+controls <- c(eqopp_demos, simpletiershock_star, ipeds_demos)
+
+did_multiplegt(
+  df = analysis_sample,
+  Y = Y,
+  G = G,
+  T = T,
+  D = D,
+  controls = controls
+)
 
 
 
-  
-  
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
+
+
 
