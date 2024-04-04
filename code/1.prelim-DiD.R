@@ -112,7 +112,7 @@ summary(m1)
 # model 2
 
 # Dynamically construct your formula for m2 (same as m1 if variables are unchanged)
-independent_vars_m2 <- c("EXPOSED", "k_married", eqopp_demos, ipeds_demos)
+independent_vars_m2 <- c("EXPOSED", eqopp_demos, ipeds_demos)
 formula_str_m2 <- paste("k_rank ~", paste(independent_vars_m2, collapse = " + "), "| UNITID + simpletiershock")
 
 # Use the formula with the feols function for m2

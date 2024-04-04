@@ -1,5 +1,5 @@
 ## FIGURE 1 ------------------------------------------
-
+# figure works, table doesnt
 
 # Load necessary libraries
 library(tidyverse)

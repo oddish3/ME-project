@@ -3,6 +3,19 @@
 # ------------------------------------------
 
 rm(list = ls())
+
+source("~/Documents/R_folder/MSc/ME/ME-project/code/1.prelim-DiD.R")
+
+library(here)
+library(dplyr)
+library(did)
+library(haven)
+library(ggplot2)
+library(fixest)
+library(HonestDiD)
+library(readr)
+library(pacman)
+
 # Install DIDmultiplegt from GitHub if not already installed
 if (!"HonestDiD" %in% rownames(installed.packages())) {
   remotes::install_github("asheshrambachan/HonestDiD")
@@ -11,20 +24,16 @@ if (!"HonestDiD" %in% rownames(installed.packages())) {
 # Load DIDmultiplegt
 pacman::p_load(DIDmultiplegt, readr)
 
-# cohort_earn_panel
-class(df$k_married)
+df <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta") %>%
+  filter(twfe_sample == 1)
 
-# analysis_sample <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta") %>%
-#   filter(twfe_sample == 1)
+# df1 <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta") %>%
+#   filter(main_sample == 1)
 
 Y <- "k_rank"
 G <- "UNITID"
 T <- "AY_FALL"
 D <- "EXPOSED"
-
-head <- df %>% select(all_of(Y), all_of(T), all_of(D), all_of(G))
-head(head)
-
 
 ### 
 
@@ -70,20 +79,14 @@ individual_vars_check <- check_vars_in_df(c(Y, G, T, D), df)
 # missing the following variables (since only replicated 1 file cleaning)
 list(eqopp_check = eqopp_check, ipeds_check = ipeds_check, controls_check = controls_check, individual_vars_check = individual_vars_check)
 
+head <- df %>% select(all_of(Y), all_of(T), all_of(D), all_of(G))
+head(head)
 
 #### honestdid github page ----
 
 
-library(here)
-library(dplyr)
-library(did)
-library(haven)
-library(ggplot2)
-library(fixest)
-library(HonestDiD)
-library(readr)
 
-df <- read_csv("~/Documents/R_folder/MSc/ME/ME-project/data/processed/cohort_earn_panel.csv")
+
 head(df, 5)
 
 
@@ -92,29 +95,80 @@ head(df, 5)
 # The variable yexp2 gives the year that a state expanded Medicaid coverage under the Affordable Care Act,
 # and is missing if the state never expanded.
 
-# Estimate the baseline DiD
+# Estimate the baseline DiD model - PULKIT 
 
-#where D is 1 if a unit is first treated in 2014 and 0 otherwise.
+library(haven)
+library(tidyverse)
+library(fixest)
+library(fastDummies)
+library(lmtest)
 
-#Keep years before 2016. Drop the 2016 cohort
-df_nonstaggered <- df %>% filter(year < 2016 &
-                                   (is.na(yexp2)| yexp2 != 2015) )
-
-#Create a treatment dummy
-df_nonstaggered <- df_nonstaggered %>% mutate(D = case_when( yexp2 == 2014 ~ 1,
-                                                             T ~ 0))
-
-#Run the TWFE spec
-twfe_results <- fixest::feols(dins ~ i(year, D, ref = 2013) | stfips + year,
-                              cluster = "stfips",
-                              data = df_nonstaggered)
+analysis_sample <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta") %>% 
+  filter(twfe_sample == 1 & late_adopter == 0)
 
 
-betahat <- summary(twfe_results)$coefficients #save the coefficients
-sigma <- summary(twfe_results)$cov.scaled #save the covariance matrix
+analysis_sample$k_rank <- analysis_sample$k_rank * 100
+#excluding a specific observation 
+analysis_sample <- filter(analysis_sample, UNITID != 184694)
+# create + recode simplebarrons variable
+analysis_sample$simplebarrons <- analysis_sample$barrons
+analysis_sample$simplebarrons <- as.numeric(as.character(analysis_sample$simplebarrons))
+analysis_sample$simplebarrons <- dplyr::recode(analysis_sample$simplebarrons,
+                                               `0` = 1, `1` = 1,
+                                               `2` = 2, `3` = 2,
+                                               `4` = 3,
+                                               `5` = 4,
+                                               `999` = 9)
+
+# group data and generate identifiers
+analysis_sample$simpletiershock <- as.integer(interaction(analysis_sample$simplebarrons, analysis_sample$AY_FALL, drop = TRUE))
+analysis_sample <- fastDummies::dummy_cols(analysis_sample, select_columns = "simpletiershock")
 
 
-fixest::iplot(twfe_results)
+
+analysis_sample$D <- ifelse(analysis_sample$EXPOSURE_4YR > 0, 1, 0)
+
+analysis_sample <- analysis_sample %>% mutate(t = case_when(
+  AY_FALL == 1998 ~ 1, 
+  AY_FALL == 1999 ~ 2,
+  AY_FALL == 2000 ~ 3,
+  AY_FALL == 2001 ~ 4,
+  AY_FALL == 2002 ~ 5,
+  AY_FALL == 2003 ~ 6,
+  AY_FALL == 2004 ~ 7,
+  AY_FALL == 2005 ~ 8
+))
+
+analysis_sample$G <- 0
+for (i in unique(analysis_sample$UNITID)){
+  analysis_sample$G[analysis_sample$UNITID == i] <- min(analysis_sample$t[analysis_sample$UNITID == i & analysis_sample$D == 1])
+}  
+
+
+analysis_sample$R <- analysis_sample$t - analysis_sample$G + 1
+analysis_sample <- dummy_cols(analysis_sample, select_columns = "R")
+R <- grep("R_", names(analysis_sample)[300:374], value = T)
+
+
+# Whats trending in diff-n-diff paper introduces these two estimators under the multiple
+# treatment periods and differntial treatment times. 
+# The Static TWFE assumes there is no hetergeneity in treatment effects over time or across
+# different units 
+# Dynamic TWFE assumes there is treatment heterogeneity over time (so different treatment effect
+# if you got the treatment sooner rather than later) but no heterogeneity across units. 
+
+# static TWFE
+M1 <- feols(k_rank ~ D | UNITID + simpletiershock, data = analysis_sample, vcov = "cluster")
+print(M1)
+
+
+# dynamic TWFE 
+M2 <- feols(k_rank ~ `R_-1` + `R_-2` + `R_1` + `R_2` + `R_3` + `R_4` + `R_5` + 
+              `R_6` | UNITID + simpletiershock, data = analysis_sample, vcov = "cluster")
+print(M2)
+  
+  
+
 
 
 
