@@ -163,7 +163,7 @@ results1 <- did_multiplegt(
 
 summary(m1) #1 more ob
 summary(m2) # 100 mroe ob
-results1
+print(results1)
 
 
 

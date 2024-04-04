@@ -7,7 +7,7 @@ library(lubridate)
 
 rm(list=ls())
 df <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta")
-# Assuming 'df' is your DataFrame after loading the data
+
 # Keep the necessary columns
 df <- df %>% select(simpletier, DateJoinedFB, FBName, super_opeid, barrons, UNITID)
 
@@ -55,8 +55,8 @@ library(readr)
 library(knitr)
 
 # Import data
-cohort_graphdata <- read_csv("data/output/cohort_graphdata.csv")
-analysis_sample <- read_dta("data/output/analysis_sample.dta")
+cohort_graphdata <- read_csv("../original_study/labour-market/data/output/cohort_graphdata.csv")
+analysis_sample <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta")
 
 # Replace missing values and merge
 analysis_sample <- analysis_sample %>%
@@ -71,7 +71,7 @@ analysis_sample <- analysis_sample %>%
          fb_schools = late_adopter == 0,
          no_fb_schools = late_adopter == 1) %>%
   mutate(across(c(k_married, par_rank, k_rank, k_emprate, female, hispanic, asian, black, frac_users), ~ .x * 100))
-
+analysis_sample$fem
 
 library(dplyr)
 
