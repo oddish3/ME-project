@@ -1,9 +1,12 @@
 rm(list=ls())
 setwd("~/Documents/R_folder/MSc/ME/ME-project/original_study/labour-market")
 
+
 library(dplyr)
 library(readr)
+library(lubridate)
 library(haven)
+
 
 # Load FB dates
 fbdates <- read_csv('data/input/FB_introduction_dates_augmented.csv') %>%
@@ -63,11 +66,15 @@ newdf$OPEID6 <- as.numeric(substr(newdf$OPEID, 1, 6))
 enter_time <- paste0("7/1/", newdf$AY_FALL)
 exit_time <- paste0("6/30/", newdf$AY_FALL + 4)
 #
-library(lubridate)
+
 
 # Convert 'exit_time' and 'newdf$DateJoinedFB' to Date objects
 exit_time_date <- as.Date(exit_time, format = "%m/%d/%Y")
 newdf$DateJoinedFB_date <- parse_date_time(newdf$DateJoinedFB, orders = c("ymd", "mdy"))
+
+#saving to df
+newdf$exit_time_date <- exit_time_date
+newdf$enter_time <- enter_time
 
 # Calculate exposure time
 exposure_time <- as.numeric(difftime(exit_time_date, newdf$DateJoinedFB_date, units = "days"))
@@ -79,8 +86,7 @@ exposure_time[is.na(exposure_time)] <- 0
 newdf$exposure_time <- exposure_time
 
 
-library(dplyr)
-library(readr)
+
 
 # Assuming 'newdf' and 'exposure_time' have been defined in your R environment already
 newdf$exposure_time <- exposure_time
@@ -117,8 +123,6 @@ birthearn <- birthearn %>%
   right_join(opeid_xwalk, by = 'super_opeid') # Using right_join to replicate 'outer' join effect in pandas
 
 
-library(dplyr)
-library(readr)
 
 # Assuming 'birthearn' dataframe is already loaded
 
@@ -170,8 +174,6 @@ beadf <- read_csv('data/input/bea_regions.csv')
 newdf <- left_join(newdf, birthearn, by = c("OPEID6", "AY_FALL"))
 newdf <- left_join(newdf, beadf, by = "state")
 
-library(dplyr)
-library(readr)
 
 # Merge in demographics
 demopanel <- read_csv('data/output/demos.csv') %>%
