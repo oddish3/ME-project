@@ -1,8 +1,17 @@
 rm(list=ls())
 
+library(fixest)
+library(haven)
 library(magrittr)
 library(dplyr)
-library(augsynth) #devtools::install_github("ebenmichael/augsynth")
+library(broom)
+library(ggplot2)
+library(binscatteR)
+library(did)
+library(etwfe)
+library(np)
+
+
 
 df <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta") %>% 
   filter(twfe_sample == 1 & late_adopter == 0)
@@ -69,8 +78,8 @@ df1$post <- ifelse(df1$AY_FALL >= df1$year_post, 1, 0)
 #(treatment intensity or dose for unit i), and Post_t (dummy variable for post-treatment period).
 
 
-M1 <- feols(k_rank ~ EXPOSED * post | UNITID + simpletiershock, data = df1, vcov = "cluster")
-summary(M1)
+# M1 <- feols(k_rank ~ EXPOSED * post | UNITID + simpletiershock, data = df1, vcov = "cluster")
+# summary(M1)
 
 # computes weights from TWFE regression ------------------------------------------
 
@@ -254,16 +263,15 @@ sum(df1$Treat * df1$post == 1)
 r1 <- lm(k_rank ~ Treat * post, data = df1)
 summary(r1)
 
-# Load the fixest package
-library(fixest)
+
+
 
 # Run the TWFE regression
 # R0 <- feols(k_rank ~ Treat +factor(UNITID) + factor(AY_FALL), data = df1)
 r1 <- feols(k_rank ~ first.treat | UNITID + AY_FALL, data = df1) # r1 <- feols(k_rank ~ Treat + post + Treat * post | UNITID + AY_FALL, data = df1)
 summary(r1) #feols clusters by UNITID here by default
 
-library(did)
-library(etwfe)
+
 
 mod =
   etwfe(
@@ -322,51 +330,86 @@ sum(df1$Treat * df1$post == 1)
 r1 <- lm(k_rank ~ stag.treat * post, data = df1)
 summary(r1)
 
-# Load the fixest package
-library(fixest)
 
 # Run the TWFE regression
 # R0 <- feols(k_rank ~ Treat +factor(UNITID) + factor(AY_FALL), data = df1)
 r1 <- feols(k_rank ~ stag.treat | UNITID + AY_FALL, data = df1) # r1 <- feols(k_rank ~ Treat + post + Treat * post | UNITID + AY_FALL, data = df1)
 summary(r1) #feols clusters by UNITID here by default
 
-library(did)
-library(etwfe)
 
-mod =
-  etwfe(
-    fml  =  k_rank ~ EXPOSED + simpletiershock, # outcome ~ controls
-    tvar = AY_FALL,        # time variable
-    gvar = stag.treat, # group variable
-    data = df1,       # dataset
-    vcov = ~UNITID  # vcov adjustment (here: clustered)
-  )
 
-# M1 <- feols(k_rank ~ D | UNITID + simpletiershock, data = analysis_sample, vcov = "cluster")
-# print(M1)
 
-mod
-emfx(mod) # ATT
 
-mod_es = emfx(mod, type = "calendar") # ATT by period
-mod_es
+# mod =
+#   etwfe(
+#     fml  =  k_rank ~ EXPOSED + simpletiershock, # outcome ~ controls
+#     tvar = AY_FALL,        # time variable
+#     gvar = stag.treat, # group variable
+#     data = df1,       # dataset
+#     vcov = ~UNITID  # vcov adjustment (here: clustered)
+#   )
+# 
+# # M1 <- feols(k_rank ~ D | UNITID + simpletiershock, data = analysis_sample, vcov = "cluster")
+# # print(M1)
+# 
+# mod
+# emfx(mod) # ATT
+# 
+# mod_es = emfx(mod, type = "calendar") # ATT by period
+# mod_es
+# 
+# mod_es = emfx(mod, type = "group") # ATT by group
+# mod_es
+# 
+# # heterogenous treatment effects
+# hmod =
+#   etwfe(
+#     fml  =  k_rank ~ EXPOSED + simpletiershock, # outcome ~ controls
+#     tvar = AY_FALL,        # time variable
+#     gvar = stag.treat, # group variable
+#     data = df1,       # dataset
+#     vcov = ~UNITID,  # vcov adjustment (here: clustered)
+#     xvar = barrons # treatment variable
+#   )
+# 
+# emfx(hmod)
+# emfx(hmod, hypothesis = "b1 = b2")
+# emfx(hmod, hypothesis = "b1 = b2", type = "calendar")
 
-mod_es = emfx(mod, type = "group") # ATT by group
-mod_es
 
-# heterogenous treatment effects
-hmod =
-  etwfe(
-    fml  =  k_rank ~ EXPOSED + simpletiershock, # outcome ~ controls
-    tvar = AY_FALL,        # time variable
-    gvar = stag.treat, # group variable
-    data = df1,       # dataset
-    vcov = ~UNITID,  # vcov adjustment (here: clustered)
-    xvar = barrons # treatment variable
-  )
+# # synthetic control 
+# library(Synth)
+# 
+# # Prepare the data
+# # Assuming your data is in a dataframe called 'df'
+# # 'outcome' is the variable you want to analyze
+# # 'time' is the time variable
+# # 'unit' is the unit identifier (e.g., state, country, etc.)
+# # 'treated' is a binary variable indicating the treated units
+# 
+# # Run the synthetic control
+# 
+# dataprep(foo = df1, predictors = c(")
+# 
+# sc_result <- synth(
+#   data = dfq,
+#   outcome.variable = "k_rank",
+#   unit.variable = "UNITID",
+#   time.variable = "AY_FALL",
+#   treatment.identifier = "Treat"
+# )
+# 
+# # Summarize the results
+# summary(sc_result)
 
-emfx(hmod)
-emfx(hmod, hypothesis = "b1 = b2")
-emfx(hmod, hypothesis = "b1 = b2", type = "calendar")
+
+
+
+
+
+
+
+
+
 
 
