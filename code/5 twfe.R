@@ -1,9 +1,10 @@
 rm(list=ls())
+
 library(magrittr)
 library(dplyr)
 library(augsynth) #devtools::install_github("ebenmichael/augsynth")
 
-df <- read_dta("../original_study/labour-market/data/output/df1.dta") %>% 
+df <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta") %>% 
   filter(twfe_sample == 1 & late_adopter == 0)
 
 
@@ -30,11 +31,17 @@ df %<>%
   mutate(
     year_treated = case_when(
       AY_FALL <= 2004 & EXPOSED > 0 & year_joinedFB <= 2004  ~ 2004,
-      AY_FALL <= 2005 & EXPOSED > 0 & year_joinedFB == 2005 ~ 2005,
-      TRUE ~ 0 # Default case if neither condition is met
+      AY_FALL < 2005 & EXPOSED > 0 & year_joinedFB == 2005 ~ 2005,
+      AY_FALL < 2000 ~0, 
+      TRUE ~ 2006 # Default case if neither condition is met
     )
   )
-df %>% select(UNITID, FBName, AY_FALL, DateJoinedFB, year_treated, k_rank, EXPOSED, EXPOSURE_4YR) %>% sample_n(8)
+
+
+
+
+
+df %>% select(UNITID, FBName, AY_FALL, DateJoinedFB, year_treated, k_rank, EXPOSED, EXPOSURE_4YR, barrons) %>% sample_n(8)
 
 
 df_post <- df %>%
@@ -44,7 +51,9 @@ df_post <- df %>%
 df1 <- left_join(df, df_post, by = "UNITID")
 
 
-df1 <- df1 %>% select(UNITID, FBName, AY_FALL, DateJoinedFB, year_treated, year_post, k_rank, EXPOSED, EXPOSURE_4YR, simpletiershock)
+df1 <- df1 %>% select(UNITID, FBName, AY_FALL, DateJoinedFB, year_treated, year_post, 
+                      k_rank, EXPOSED, EXPOSURE_4YR, simpletiershock, year_joinedFB, barrons, simpletier, 
+                      simplebarrons)
 # year = cohort. state = UNITID
 # year_treated = year that cohort had access to fb
 # k_rank rank of student in national cohort
@@ -225,18 +234,139 @@ twfe_weights_plot
 
 
 
-###
-unique_combinations <- df1 %>%
-  distinct(post, treatment, .keep_all = TRUE)
-unique_combinations
-count_combinations <- df1 %>%
-  group_by(post, treatment) %>%
-  summarise(Count = n())
-count_combinations
-cross_tab <- table(df1$post, df1$treatment)
-cross_tab
-combination_check <- df1 %>%
-  group_by(post, treatment) %>%
-  summarise(Count = n()) %>%
-  filter(Count == 0)
-combination_check
+### 2 x 2 DiD
+# Step 1: Create a dummy variable for the treatment group
+
+df1$Treat <- ifelse(df1$EXPOSED > 0, 1, 0)
+df1$first.treat <- ifelse(df1$EXPOSED > 0 & df1$year_joinedFB == 2004 & df1$year_treated == 2004 , df1$year_joinedFB, 0)
+
+# create a dummy variable for post-treatment period
+df1$post <- ifelse(df1$year_joinedFB == 2004, 1, 0)
+
+df1 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB,  post, Treat, year_treated, first.treat)
+df1 %>% filter(UNITID == 100706) %>% select(FBName, AY_FALL, DateJoinedFB,  post, Treat, year_treated, first.treat)
+df1 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB,  post, Treat, year_treated, first.treat)
+
+sum(df1$Treat == 1)
+sum(df1$post == 1)
+sum(df1$Treat * df1$post == 1)
+
+r1 <- lm(k_rank ~ Treat * post, data = df1)
+summary(r1)
+
+# Load the fixest package
+library(fixest)
+
+# Run the TWFE regression
+# R0 <- feols(k_rank ~ Treat +factor(UNITID) + factor(AY_FALL), data = df1)
+r1 <- feols(k_rank ~ first.treat | UNITID + AY_FALL, data = df1) # r1 <- feols(k_rank ~ Treat + post + Treat * post | UNITID + AY_FALL, data = df1)
+summary(r1) #feols clusters by UNITID here by default
+
+library(did)
+library(etwfe)
+
+mod =
+  etwfe(
+    fml  =  k_rank ~ EXPOSED + simpletiershock, # outcome ~ controls
+    tvar = AY_FALL,        # time variable
+    gvar = first.treat, # group variable
+    data = df1,       # dataset
+    vcov = ~UNITID  # vcov adjustment (here: clustered)
+  )
+
+# M1 <- feols(k_rank ~ D | UNITID + simpletiershock, data = analysis_sample, vcov = "cluster")
+# print(M1)
+
+mod
+emfx(mod) # ATT
+
+mod_es = emfx(mod, type = "calendar") # ATT by period
+mod_es
+
+mod_es = emfx(mod, type = "group") # ATT by group
+mod_es
+
+# heterogenous treatment effects
+hmod =
+  etwfe(
+    fml  =  k_rank ~ EXPOSED + simpletiershock, # outcome ~ controls
+    tvar = AY_FALL,        # time variable
+    gvar = first.treat, # group variable
+    data = df1,       # dataset
+    vcov = ~UNITID,  # vcov adjustment (here: clustered)
+    xvar = barrons # treatment variable
+  )
+
+emfx(hmod)
+emfx(hmod, hypothesis = "b1 = b2")
+emfx(hmod, hypothesis = "b1 = b2", type = "calendar")
+
+
+## staggered DiD
+df1$Treat <- ifelse(df1$EXPOSED > 0, 1, 0)
+df1$stag.treat <- ifelse(df1$EXPOSED > 0 & df1$year_joinedFB == 2004 & df1$year_treated == 2004 , df1$year_joinedFB, 
+                          ifelse(df1$EXPOSED > 0 & df1$year_joinedFB == 2005 & df1$year_treated == 2005, df1$year_joinedFB, 
+                                 ifelse(df1$EXPOSED > 0 & df1$AY_FALL == 2005, 2005, 0)))
+
+# create a dummy variable for post-treatment period
+df1$post <- ifelse(df1$year_joinedFB == 2004, 1, 0)
+
+df1 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB,  post, Treat, year_treated, stag.treat)
+df1 %>% filter(UNITID == 100706) %>% select(FBName, AY_FALL, DateJoinedFB,  post, Treat, year_treated, stag.treat)
+df1 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB,  post, Treat, year_treated, stag.treat)
+
+sum(df1$stag.treat == 2004 | 2005)
+sum(df1$post == 1)
+sum(df1$Treat * df1$post == 1)
+
+r1 <- lm(k_rank ~ stag.treat * post, data = df1)
+summary(r1)
+
+# Load the fixest package
+library(fixest)
+
+# Run the TWFE regression
+# R0 <- feols(k_rank ~ Treat +factor(UNITID) + factor(AY_FALL), data = df1)
+r1 <- feols(k_rank ~ stag.treat | UNITID + AY_FALL, data = df1) # r1 <- feols(k_rank ~ Treat + post + Treat * post | UNITID + AY_FALL, data = df1)
+summary(r1) #feols clusters by UNITID here by default
+
+library(did)
+library(etwfe)
+
+mod =
+  etwfe(
+    fml  =  k_rank ~ EXPOSED + simpletiershock, # outcome ~ controls
+    tvar = AY_FALL,        # time variable
+    gvar = stag.treat, # group variable
+    data = df1,       # dataset
+    vcov = ~UNITID  # vcov adjustment (here: clustered)
+  )
+
+# M1 <- feols(k_rank ~ D | UNITID + simpletiershock, data = analysis_sample, vcov = "cluster")
+# print(M1)
+
+mod
+emfx(mod) # ATT
+
+mod_es = emfx(mod, type = "calendar") # ATT by period
+mod_es
+
+mod_es = emfx(mod, type = "group") # ATT by group
+mod_es
+
+# heterogenous treatment effects
+hmod =
+  etwfe(
+    fml  =  k_rank ~ EXPOSED + simpletiershock, # outcome ~ controls
+    tvar = AY_FALL,        # time variable
+    gvar = stag.treat, # group variable
+    data = df1,       # dataset
+    vcov = ~UNITID,  # vcov adjustment (here: clustered)
+    xvar = barrons # treatment variable
+  )
+
+emfx(hmod)
+emfx(hmod, hypothesis = "b1 = b2")
+emfx(hmod, hypothesis = "b1 = b2", type = "calendar")
+
+

@@ -28,7 +28,6 @@ if (!"DIDmultiplegt" %in% rownames(installed.packages())) {
 
 # Load DIDmultiplegt
 pacman::p_load(DIDmultiplegt)
-library(DIDmultiplegtDYN)
 
 # Data 
 
@@ -131,8 +130,7 @@ analysis_sample_sub <- analysis_sample[analysis_sample$AY_FALL <= 2001, ]
 Y <- "k_rank"
 G <- "UNITID"
 T <- "AY_FALL"
-D <- "EXPOSURE_4YR"
-
+D <- "EXPOSED"
 controls <- c(eqopp_demos, simpletiershock_star, ipeds_demos)
 
 #### !!!!! takes a while to run
@@ -140,17 +138,17 @@ controls <- c(eqopp_demos, simpletiershock_star, ipeds_demos)
 # 
 analysis_sample1 <- analysis_sample_sub
 
-did_multiplegt_dyn(
+results1 <- did_multiplegt(
   df = analysis_sample1,
-  outcome = Y,
-  group = G,
-  time = T,
-  treatment = D,
-  cluster = "UNITID",
-  graph_off = TRUE
+  Y = Y,
+  G = G,
+  T = T,
+  D = D,
+  controls = controls,
+  brep      = 10,                  # no. of bootstraps (required for SEs)
+  cluster   = 'UNITID',                # variable to cluster SEs on
+  parallel  = TRUE                 # run the bootstraps in parallel
 )
-
-
 
 summary(m1) #1 more ob
 summary(m2) # 100 mroe ob
