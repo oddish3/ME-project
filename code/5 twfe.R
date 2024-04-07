@@ -149,7 +149,111 @@ summary(r2)
 # the DID estimate by hand or using TWFE regression. If treatment effects are heterogeneous across states, then the
 # estimated effect is the average ATT across the states.
 
-# scenario 3 Two states, multiple time points
+# scenario 3 Two states, multiple time points, staggered treatment timing
+
+df4 <- df1
+
+df_late <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta") %>% 
+  filter(twfe_sample == 1) 
+
+df_late %>%
+  filter(late_adopter == 1) %>%
+  select(UNITID, FBName, AY_FALL, DateJoinedFB, k_rank, EXPOSED, EXPOSURE_4YR) %>%
+  arrange(desc(AY_FALL))
+
+
+df_late5 = df_late  %>% filter(FBName == "Harvard" | FBName == "Simmons" | FBName == " Alabama Huntsville" | UNITID == 100830) %>% 
+  filter(AY_FALL < 2002) %>% filter(AY_FALL >= 1999) %>% 
+  select(UNITID, FBName, AY_FALL, DateJoinedFB, k_rank, EXPOSED, EXPOSURE_4YR)
+
+## 
+df_late5$UNITID = as.factor(df_late5$UNITID)
+df_late5$FBNAME1 = as.factor(df_late5$FBName)
+df_late5 %<>% mutate(ever_trt = case_when(FBName == "Harvard" | FBName == "Simmons"  ~ "treated in 2004", 
+                                    FBName == " Alabama Huntsville" ~ "treated in 2005",
+                                    TRUE ~ "never treated"))
+
+ggplot(df_late5, aes(x = AY_FALL, y = k_rank)) + 
+  geom_line(aes(col = FBNAME1)) + 
+  geom_point(aes(fill = FBNAME1, pch = ever_trt)) + labs(title = "Scenario 5 (Staggered timing)")
+
+
+s5_mod <- lm(k_rank ~  policy + state + factor(time), data = df_late5)
+
+
+
+
+
+
+# # equivalent TWFE Regression model
+# df3$policy = df3$Treat * df3$post
+# r2 <- lm(k_rank ~ UNITID + AY_FALL + policy, data = df3)
+# summary(r2)
+
+df_late5$DateJoinedFB <- as.Date(df_late5$DateJoinedFB, format = "%m/%d/%Y")
+df_late5$year_joinedFB <- format(df_late5$DateJoinedFB, "%Y")
+df_late5 %<>% 
+  mutate(
+    year_treated = case_when(
+      AY_FALL < 2004 & EXPOSED > 0 & year_joinedFB <= 2004  ~ 2004,
+      AY_FALL <= 2005 & EXPOSED > 0 & year_joinedFB <= 2005 ~ 2005,
+      TRUE ~ 0  # Use NA_real_ for numeric NA
+    )
+  )
+
+df_late5$Treat <- ifelse(df_late5$year_joinedFB == 2004 | df_late5$year_joinedFB == 2005, 1, 0)
+sum(df1$Treat == 1)
+# df1$first.treat <- ifelse(df1$EXPOSED > 0 & df1$year_joinedFB == 2004 & df1$year_treated == 2004 , df1$year_joinedFB, 0)
+
+# STEP 2 : create a dummy variable for post-treatment period
+# facebook rolled out in 2004, so 2000 cohort is the first post-treatment period
+df_late5$post <- ifelse(df_late5$AY_FALL >= 2000, 1, 0)
+df_late5$policy = df_late5$Treat * df_late5$post
+
+s5_mod <- lm(k_rank ~  policy + UNITID + factor(AY_FALL), data = df_late5)
+tidy(s5_mod)
+
+
+
+
+df4 <- df1  %>% filter(EXPOSED == 0 & AY_FALL < 2001) %>% filter(AY_FALL >= 1999)
+df4 <- df1  %>% filter(FBName == "Harvard" | UNITID == 100706)
+# df2 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB,  post, Treat, year_treated,Treat)
+# df2 %>% filter(UNITID == 100706) %>% select(FBName, AY_FALL, DateJoinedFB,  post, Treat, year_treated, Treat)
+# df2 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB,  post, Treat, year_treated, Treat)
+df4$treat <- ifelse(df4$year_joinedFB == 2004 , 2004, ifelse(df4$year_joinedFB == 2005, 2005, 0))
+
+sum(df4$Treat == 1)
+sum(df4$post == 1)
+sum(df4$Treat * df2$post == 1)
+df4$FBNAME1 = as.factor(df4$FBName)
+
+ggplot(df4, aes(x = AY_FALL, y = k_rank)) + 
+  geom_line(aes(group = FBNAME1, col = FBNAME1)) +
+  geom_point(aes(fill = FBNAME1, pch = FBNAME1), size = 4) +
+  geom_text(aes(label = sprintf("%.2f", k_rank)), vjust = -0.5, hjust = 0.5)
+
+# # Pre-treatment difference of 15
+# 
+# Post-treatment difference of 9
+# 
+# Causal effect of policy = 9-15 = -6 or equivalently,
+# 
+# uni 1 difference of -0.5
+# 
+# uni 2 difference of 5
+# 
+# Causal effect of policy = -0.5-5 = -6 under the assumptions
+
+# Two-way fixed effects (TWFE) regression model ----
+# 
+# # Under the canonical TWFE design, we can estimate the policy effect by including a fixed effect (FE) for state,
+# # a FE for time, and an indicator for the policy change. The indicator should be 1 for when the treated states are 
+# # in the post-treatment period, and 0 otherwise
+df2$policy = df2$Treat * df2$post
+
+r1 <- lm(k_rank ~ UNITID + AY_FALL + policy, data = df2)
+summary(r1)
 
 
 
@@ -159,8 +263,6 @@ summary(r2)
 
 
 
-
-df4 <- df1 %>% filter(FBName == "Harvard" | FBName == "Simmons" | FBName == " Alabama Huntsville") %>% filter(AY_FALL < 2001) %>% filter(AY_FALL >= 1999)
 
 
 # Run the TWFE regression of binary treatment case for   (df1) many x 2 x 2 ---- 

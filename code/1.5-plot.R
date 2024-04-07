@@ -21,19 +21,33 @@ date_seq <- seq(from = min(df1$date, na.rm = TRUE), to = max(df1$date, na.rm = T
 tier_data <- list()
 
 # Loop over each tier to calculate fraction of schools with FB access
+# Assume df1, date_seq, first_day, and last_day are already defined
 tiers <- unique(df1$barrons, na.rm = TRUE)
+tier_data <- list() # Initialize the list to store data frames for each tier
+
 for(t in tiers) {
-  # For each date, calculate the fraction of schools that have joined FB
-  tier_df <- data.frame(date = date_seq)
+  tier_df <- data.frame(date = date_seq) # Initialize data frame for the current tier
+  
+  # Conditional calculation based on tier
   tier_df$fb_access <- sapply(tier_df$date, function(d) {
-    mean(df1$date <= d & df1$barrons == t, na.rm = TRUE)
+    if(t == 7) {
+      mean(df1$date <= d, na.rm = TRUE) # For the last tier, the condition does not depend on 'barrons'
+    } else {
+      mean(df1$date <= d & df1$barrons == t, na.rm = TRUE) # For other tiers
+    }
   })
-  tier_df$tier = t
-  tier_data[[as.character(t)]] <- tier_df
+  
+  tier_df$tier <- t
+  
+  # Optionally, calculate and append the label with the number of unique UNITID for the current tier
+  # This part is more complex in R and might require additional steps not shown here
+  
+  tier_data[[as.character(t)]] <- tier_df # Store the data frame for the current tier in the list
 }
 
 # Combine all tiers into one data frame
-combined_df <- bind_rows(tier_data)
+combined_df <- do.call(rbind, tier_data)
+
 
 # Plotting
 ggplot(combined_df, aes(x = date, y = fb_access, color = factor(tier))) +
@@ -49,39 +63,24 @@ ggplot(combined_df, aes(x = date, y = fb_access, color = factor(tier))) +
 #ggsave("fb_rollout.pdf", width = 11, height = 8.5, dpi = 300)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Stagegred intro plot ------------------------------------------
  
  # Create a unique identifier for each day and college combination
- df1 <- df1 %>%
+ dfdf1 <- df1 %>%
    group_by(date, UNITID) %>%
    summarise()
  
  # Create a sequence of dates for plotting
- date_seq <- seq(from = min(df1$date, na.rm = TRUE), to = max(df1$date, na.rm = TRUE), by = "day")
+ date_seq <- seq(from = min(dfdf1$date, na.rm = TRUE), to = max(dfdf1$date, na.rm = TRUE), by = "day")
  
  # Calculate the cumulative number of colleges with FB access for each date
  cumulative_df <- data.frame(date = date_seq)
  cumulative_df$fb_access <- sapply(cumulative_df$date, function(d) {
-   sum(df1$date <= d, na.rm = TRUE)
+   sum(dfdf1$date <= d, na.rm = TRUE)
  })
  
  # Normalizing fb_access to fraction by dividing by the total number of unique colleges
- total_colleges <- length(unique(df1$UNITID))
+ total_colleges <- length(unique(dfdf1$UNITID))
  cumulative_df$fb_access <- cumulative_df$fb_access / total_colleges
  
  # Plotting
@@ -93,13 +92,15 @@ ggplot(combined_df, aes(x = date, y = fb_access, color = factor(tier))) +
    theme_minimal() +
    scale_y_continuous(labels = scales::percent_format())
 
-# DiD plots? --------------
-df2 = df %>%  select(simpletier, DateJoinedFB, FBName, super_opeid, barrons, UNITID, late_adopter, EXPOSED, EXPOSURE_4YR, k_rank, AY_FALL)
 
-df2$DateJoinedFB <- as.Date(df2$DateJoinedFB, format = "%m/%d/%Y")
-df2$year_joinedFB <- as.Date(format(df2$DateJoinedFB, "%Y"), format = "%Y")
+ 
+ # DiD plots? --------------
+dfdf2 = df %>%  select(simpletier, DateJoinedFB, FBName, super_opeid, barrons, UNITID, late_adopter, EXPOSED, EXPOSURE_4YR, k_rank, AY_FALL)
 
-df2 %<>% 
+dfdf2$DateJoinedFB <- as.Date(dfdf2$DateJoinedFB, format = "%m/%d/%Y")
+dfdf2$year_joinedFB <- as.Date(format(dfdf2$DateJoinedFB, "%Y"), format = "%Y")
+
+dfdf2 %<>% 
   mutate(
     year_treated = case_when(
       AY_FALL < 2004 & EXPOSED > 0 & year_joinedFB <= 2004  ~ 2004,
@@ -109,17 +110,15 @@ df2 %<>%
     )
   )
 
- df2 <- df %>% 
+ dfdf2 <- df %>% 
    select(simpletier, DateJoinedFB, FBName, super_opeid, barrons, UNITID, late_adopter, EXPOSED, EXPOSURE_4YR, k_rank, AY_FALL)
  
  # Convert DateJoinedFB to Date format and create a year_joinedFB variable
- df2$DateJoinedFB <- as.Date(df2$DateJoinedFB, format = "%m/%d/%Y")
- df2$year_joinedFB <- format(df2$DateJoinedFB, "%Y")
- min(df2$DateJoinedFB, na.rm = TRUE)
- max(df2$DateJoinedFB, na.rm = TRUE)
+ dfdf2$DateJoinedFB <- as.Date(dfdf2$DateJoinedFB, format = "%m/%d/%Y")
+ dfdf2$year_joinedFB <- format(dfdf2$DateJoinedFB, "%Y")
  
  # Create year_treated variable
- dfdf <- df2 %>% 
+ dfdf <- dfdf2 %>% 
    mutate(
      year_treated = case_when(
        AY_FALL <= 2004 & EXPOSED > 0 & year_joinedFB <= 2004  ~ 2004,
@@ -138,13 +137,20 @@ df2 %<>%
  
  # 1.5 binary treatment (2004) ------
  dfdf1 = dfdf
- # dfdf1$first.treat <- as.numeric(ifelse(dfdf1$EXPOSED > 0 & dfdf1$year_joinedFB == 2004 & dfdf1$year_treated == 2004 & dfdf1$AY_FALL <2004 , dfdf1$year_joinedFB, 0))
+ 
+ # dfdf1$first.treat <- as.numeric(ifelse(dfdf1$EXPOSED > 0 & dfdf1$year_joinedFB == 2004 & dfdf1$year_treated == 2004 & dfdf1$AY_FALL <2004 , 1, 0))
 
- dfdf2 <- dfdf1 #%>% filter(AY_FALL <= 2000) 
- dfdf2 <- dfdf2 %>%
+ dfdf1 <- dfdf1 %>%
    group_by(UNITID) %>%
-   mutate(first.treat = ifelse(any(year_treated > 0), 1, 0)) %>%
+   mutate(first.treat = ifelse(any(year_treated == 2004), 1, 0)) %>%
    ungroup()
+ 
+ dfdf1 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat)
+ dfdf1 %>% filter(UNITID == 100706) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat)
+ dfdf1 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat)
+ 
+ dfdf2 <- dfdf1 #%>% filter(AY_FALL <= 2000) 
+
  
  average_k_rank <- dfdf2 %>%
    group_by(AY_FALL, first.treat) %>% summarise(average_k_rank = mean(k_rank, na.rm = TRUE))
@@ -160,28 +166,6 @@ df2 %<>%
    theme_minimal() +
    geom_vline(xintercept = 2000, slope = 0, linetype = "dashed")
 
- 
- 
- 
- 
-
-dfdf2 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat)
-dfdf2 %>% filter(UNITID == 100706) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat)
-dfdf2 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat)
-
-average_k_rank <- dfdf2 %>%
-  group_by(AY_FALL, first.treat) %>% summarise(average_k_rank = mean(k_rank, na.rm = TRUE)) %>% ungroup()
- 
-ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank, color = as.factor(first.treat))) +
-  geom_line() + # Using geom_line to connect average points over AY_FALL
-  geom_point() + # Optionally add points to highlight the actual averages
-  labs(title = "Average K_Rank by Cohort and Initial Rollout",
-       x = "Cohort",
-       y = "Average K_Rank",
-       color = "Treated") +
-  theme_minimal() 
- 
- 
  # Calculate the average k_rank for each AY_FALL and year_treated
  average_k_rank <- dfdf %>%
    group_by(AY_FALL, year_treated) %>%
@@ -199,20 +183,21 @@ ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank, color = as.factor(fi
    theme_minimal()
 dfdf1$year_joinedFB <-  ifelse(is.na(dfdf1$year_joinedFB), 0, dfdf1$year_joinedFB)
  
- dfdf1 <- dfdf1 %>%
+dfdf1 <- dfdf1 %>%
    mutate(post = case_when(
      AY_FALL >= 2000 ~ 1, 
      TRUE ~ 0
    ))
- dfdf2$year_joinedFB <- (as.numeric(dfdf2$year_joinedFB))
- dfdf2$year_joinedFB <- ifelse(is.na(dfdf2$year_joinedFB), 0,dfdf2$year_joinedFB)
- dfdf2$init.treat <- ifelse(dfdf2$year_joinedFB == 2004 & dfdf2$first.treat == 2004, 1,0)
  
- dfdf2 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
- dfdf2 %>% filter(UNITID == 100706) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
- dfdf2 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
+dfdf1$year_joinedFB <- (as.numeric(dfdf2$year_joinedFB))
+dfdf1$year_joinedFB <- ifelse(is.na(dfdf2$year_joinedFB), 0,dfdf2$year_joinedFB)
+dfdf1$init.treat <- ifelse(dfdf2$year_joinedFB == 2004 & dfdf2$first.treat == 2004, 1,0)
  
- dfdf2 <- dfdf2 %>% select(UNITID, FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post, 
+dfdf1 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
+dfdf1 %>% filter(UNITID == 100706) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
+dfdf1 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
+ 
+dfdf2 <- dfdf2 %>% select(UNITID, FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post, 
                        k_rank, EXPOSED, EXPOSURE_4YR, year_joinedFB)
  # year = cohort. state = UNITID
  # year_treated = year that cohort had access to fb
