@@ -21,7 +21,7 @@ date_seq <- seq(from = min(df1$date, na.rm = TRUE), to = max(df1$date, na.rm = T
 tier_data <- list()
 
 # Loop over each tier to calculate fraction of schools with FB access
-tiers <- unique(df1$barrons)
+tiers <- unique(df1$barrons, na.rm = TRUE)
 for(t in tiers) {
   # For each date, calculate the fraction of schools that have joined FB
   tier_df <- data.frame(date = date_seq)
@@ -47,6 +47,22 @@ ggplot(combined_df, aes(x = date, y = fb_access, color = factor(tier))) +
 
 # Save the plot
 #ggsave("fb_rollout.pdf", width = 11, height = 8.5, dpi = 300)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Stagegred intro plot ------------------------------------------
  
@@ -81,15 +97,15 @@ ggplot(combined_df, aes(x = date, y = fb_access, color = factor(tier))) +
 df2 = df %>%  select(simpletier, DateJoinedFB, FBName, super_opeid, barrons, UNITID, late_adopter, EXPOSED, EXPOSURE_4YR, k_rank, AY_FALL)
 
 df2$DateJoinedFB <- as.Date(df2$DateJoinedFB, format = "%m/%d/%Y")
-df2$year_joinedFB <- format(df2$DateJoinedFB, "%Y")
+df2$year_joinedFB <- as.Date(format(df2$DateJoinedFB, "%Y"), format = "%Y")
 
-
-dfdf <- df2 %>% 
+df2 %<>% 
   mutate(
     year_treated = case_when(
-      AY_FALL <= 2004 & EXPOSED > 0 & year_joinedFB <= 2004  ~ 2004,
-      AY_FALL <= 2005 & EXPOSED > 0 & year_joinedFB == 2005 ~ 2005,
-      TRUE ~ NA  # Default case if neither condition is met
+      AY_FALL < 2004 & EXPOSED > 0 & year_joinedFB <= 2004  ~ 2004,
+      AY_FALL < 2005 & EXPOSED > 0 & year_joinedFB == 2005 ~ 2005,
+      AY_FALL < 2000 ~0, 
+      TRUE ~ 0 # Default case if neither condition is met
     )
   )
 
@@ -108,7 +124,7 @@ dfdf <- df2 %>%
      year_treated = case_when(
        AY_FALL <= 2004 & EXPOSED > 0 & year_joinedFB <= 2004  ~ 2004,
        AY_FALL <= 2005 & EXPOSED > 0 & year_joinedFB <= 2005 ~ 2005,
-       TRUE ~ 2006  # Use NA_real_ for numeric NA
+       TRUE ~ 0  # Use NA_real_ for numeric NA
      )
    )
  
@@ -119,6 +135,51 @@ dfdf <- df2 %>%
  ggplot(dfdf, aes(x = AY_FALL, y = k_rank, color = as.factor(year_treated))) +
    geom_point() +
    theme_minimal()
+ 
+ # 1.5 binary treatment (2004) ------
+ dfdf1 = dfdf
+ # dfdf1$first.treat <- as.numeric(ifelse(dfdf1$EXPOSED > 0 & dfdf1$year_joinedFB == 2004 & dfdf1$year_treated == 2004 & dfdf1$AY_FALL <2004 , dfdf1$year_joinedFB, 0))
+
+ dfdf2 <- dfdf1 #%>% filter(AY_FALL <= 2000) 
+ dfdf2 <- dfdf2 %>%
+   group_by(UNITID) %>%
+   mutate(first.treat = ifelse(any(year_treated > 0), 1, 0)) %>%
+   ungroup()
+ 
+ average_k_rank <- dfdf2 %>%
+   group_by(AY_FALL, first.treat) %>% summarise(average_k_rank = mean(k_rank, na.rm = TRUE))
+ 
+ ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank, color = as.factor(first.treat))) +
+   geom_line() + # Using geom_line to connect average points over AY_FALL
+   geom_point()  + 
+   # Optionally add points to highlight the actual averages
+   labs(title = "Average K_Rank by Cohort and Initial Rollout",
+        x = "Cohort",
+        y = "Average K_Rank",
+        color = "Uni Treated in 2004") +
+   theme_minimal() +
+   geom_vline(xintercept = 2000, slope = 0, linetype = "dashed")
+
+ 
+ 
+ 
+ 
+
+dfdf2 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat)
+dfdf2 %>% filter(UNITID == 100706) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat)
+dfdf2 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat)
+
+average_k_rank <- dfdf2 %>%
+  group_by(AY_FALL, first.treat) %>% summarise(average_k_rank = mean(k_rank, na.rm = TRUE)) %>% ungroup()
+ 
+ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank, color = as.factor(first.treat))) +
+  geom_line() + # Using geom_line to connect average points over AY_FALL
+  geom_point() + # Optionally add points to highlight the actual averages
+  labs(title = "Average K_Rank by Cohort and Initial Rollout",
+       x = "Cohort",
+       y = "Average K_Rank",
+       color = "Treated") +
+  theme_minimal() 
  
  
  # Calculate the average k_rank for each AY_FALL and year_treated
@@ -136,18 +197,80 @@ dfdf <- df2 %>%
         y = "Average K_Rank",
         color = "Year Treated") +
    theme_minimal()
+dfdf1$year_joinedFB <-  ifelse(is.na(dfdf1$year_joinedFB), 0, dfdf1$year_joinedFB)
+ 
+ dfdf1 <- dfdf1 %>%
+   mutate(post = case_when(
+     AY_FALL >= 2000 ~ 1, 
+     TRUE ~ 0
+   ))
+ dfdf2$year_joinedFB <- (as.numeric(dfdf2$year_joinedFB))
+ dfdf2$year_joinedFB <- ifelse(is.na(dfdf2$year_joinedFB), 0,dfdf2$year_joinedFB)
+ dfdf2$init.treat <- ifelse(dfdf2$year_joinedFB == 2004 & dfdf2$first.treat == 2004, 1,0)
+ 
+ dfdf2 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
+ dfdf2 %>% filter(UNITID == 100706) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
+ dfdf2 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
+ 
+ dfdf2 <- dfdf2 %>% select(UNITID, FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post, 
+                       k_rank, EXPOSED, EXPOSURE_4YR, year_joinedFB)
+ # year = cohort. state = UNITID
+ # year_treated = year that cohort had access to fb
+ # k_rank rank of student in national cohort
+ head(df1)
  
  
+average_k_rank <- dfdf2 %>%
+  group_by(AY_FALL, init.treat) %>%
+  summarise(average_k_rank = mean(k_rank, na.rm = TRUE)) %>%
+  ungroup() # Ensure the data is not grouped for plotting
 
+ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank)) +
+  geom_line(aes(color = as.factor(init.treat))) + # Use color to differentiate 'post' status
+  labs(title = "Average K_Rank by Cohort, Post, and Init.Treat Status",
+       x = "Cohort",
+       y = "Average K_Rank",
+       color = "Treat Status",
+       shape = "Init.Treat Status") +
+  theme_minimal() +
+  geom_vline(xintercept = 2000, linetype="dashed", color = "red") # Example vertical line for a significant year
 
+dfdf2 %<>% filter(year_joinedFB == 2004 | year_joinedFB == 0)
 
+dfdf2 <- dfdf2 %>%
+  mutate(post = case_when(
+    AY_FALL >= 2000 ~ 1, 
+    TRUE ~ 0
+  ))
 
+dfdf2$year_joinedFB <- ifelse(is.na(dfdf2$year_joinedFB), 0,dfdf2$year_joinedFB)
+dfdf2$init.treat <- ifelse(dfdf2$year_joinedFB == 2004 & dfdf2$first.treat == 2004, 1,0)
 
+dfdf2 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
+dfdf2 %>% filter(UNITID == 101435) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
+dfdf2 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
 
+dfdf2 <- dfdf2 %>% select(UNITID, FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post, 
+                          k_rank, EXPOSED, EXPOSURE_4YR, year_joinedFB)
+# year = cohort. state = UNITID
+# year_treated = year that cohort had access to fb
+# k_rank rank of student in national cohort
+head(df1)
 
+average_k_rank <- dfdf2 %>%
+  group_by(AY_FALL, init.treat) %>%
+  summarise(average_k_rank = mean(k_rank, na.rm = TRUE)) %>%
+  ungroup() # Ensure the data is not grouped for plotting
 
-
-
+ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank)) +
+  geom_line(aes(color = as.factor(init.treat))) + # Use color to differentiate 'post' status
+  labs(title = "Average K_Rank by Cohort, Post, and Init.Treat Status",
+       x = "Cohort",
+       y = "Average K_Rank",
+       color = "Treat Status",
+       shape = "Init.Treat Status") +
+  theme_minimal() +
+  geom_vline(xintercept = 2000, linetype="dashed", color = "red") # Example vertical line for a significant year
 
 
 
