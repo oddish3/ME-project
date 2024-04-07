@@ -54,6 +54,7 @@ df1 <- df
 head(df1)
 
 ### 2 x 2 x 2 DiD ----- for 2004 vs 0 cases --------- 2 states by 2 time points
+#' all from @https://rpubs.com/corinne-riddell/guide-to-did-estimators
 
 # scenario 1
 # Step 1: Create a dummy variable for the treatment group
