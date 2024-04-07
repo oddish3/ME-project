@@ -12,12 +12,11 @@ library(binscatteR)
 library(did)
 library(etwfe)
 library(np)
+library(fastDummies)
+library(bacondecomp)
 
 
-
-df <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta") %>% 
-  filter(twfe_sample == 1 & late_adopter == 0)
-
+df <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta")
 
 df$k_rank <- df$k_rank * 100
 #excluding a specific observation 
@@ -49,11 +48,10 @@ df %<>%
 
 df %>% filter(FBName == "Harvard" | UNITID == 100706 | UNITID == 243744 ) %>% select(UNITID, FBName, AY_FALL, DateJoinedFB, year_treated, k_rank, EXPOSED, 
                                               EXPOSURE_4YR)
-
 df1 <- df 
 head(df1)
 
-### 2 x 2 x 2 DiD ----- for 2004 vs 0 cases --------- 2 states by 2 time points
+### 2 x 2 x 2 DiD ----- for 2004 vs 0 cases --------- 2 states by 2 time points ----------
 #' all from @https://rpubs.com/corinne-riddell/guide-to-did-estimators
 
 # scenario 1
@@ -108,7 +106,7 @@ ggplot(df2, aes(x = AY_FALL, y = k_rank)) +
 # 
 # Causal effect of policy = -0.5-5 = -6 under the assumptions
 
-# Two-way fixed effects (TWFE) regression model ----
+# TWFE Version
 # 
 # # Under the canonical TWFE design, we can estimate the policy effect by including a fixed effect (FE) for state,
 # # a FE for time, and an indicator for the policy change. The indicator should be 1 for when the treated states are 
@@ -206,7 +204,7 @@ df_late5$policy = ifelse(df_late5$Treat4 == 1 & df_late5$post == 1, 1,
                          ifelse(df_late5$Treat5 == 1 & df_late5$post == 1, 1, 0))
 df_late5$policy  
 
-# Two-way fixed effects (TWFE) regression model ----
+# Two-way fixed effects (TWFE) regression model 
 s5_mod <- lm(k_rank ~  policy + UNITID + factor(AY_FALL), data = df_late5)
 tidy(s5_mod)
 
@@ -220,68 +218,74 @@ s5_bacon <- bacon(k_rank ~ policy_n,
 
 #### trying to get bacon decomposition on staggered - not working ----
 
-# df4 <- df1
-# 
-# df_late <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta") 
-# 
-# df_late %>%
-#   select(UNITID, FBName, AY_FALL, DateJoinedFB, k_rank, EXPOSED, EXPOSURE_4YR) %>%
-#   arrange(desc(AY_FALL))
-# 
-# 
-# df_late5 = df_late  %>% filter(FBName == "Harvard" | FBName == "Simmons" | FBName == " Alabama Huntsville" | UNITID == 100937) %>% 
-#   # filter(AY_FALL < 2002) %>% 
-#   select(UNITID, FBName, AY_FALL, DateJoinedFB, k_rank, EXPOSED, EXPOSURE_4YR)
-# 
-# ## 
-# df_late5$UNITID = as.factor(df_late5$UNITID)
-# df_late5$FBNAME1 = as.factor(df_late5$FBName)
-# df_late5 %<>% mutate(ever_trt = case_when(FBName == "Harvard" | FBName == "Simmons"  ~ "treated in 2004", 
-#                                           FBName == " Alabama Huntsville" ~ "treated in 2005",
-#                                           TRUE ~ "never treated"))
-# 
-# ggplot(df_late5, aes(x = AY_FALL, y = k_rank)) + 
-#   geom_line(aes(col = FBNAME1)) + 
-#   geom_point(aes(fill = FBNAME1, pch = ever_trt)) + labs(title = "Scenario 5 (Staggered timing)")
-# 
-# 
-# # now defining bunch of variables 
-# 
-# # # equivalent TWFE Regression model
-# # df3$policy = df3$Treat * df3$post
-# # r2 <- lm(k_rank ~ UNITID + AY_FALL + policy, data = df3)
-# # summary(r2)
-# 
-# df_late5$DateJoinedFB <- as.Date(df_late5$DateJoinedFB, format = "%m/%d/%Y")
-# df_late5$year_joinedFB <- format(df_late5$DateJoinedFB, "%Y")
-# df_late5 %<>% 
-#   mutate(
-#     year_treated = case_when(
-#       AY_FALL < 2004 & EXPOSED > 0 & year_joinedFB <= 2004  ~ 2004,
-#       AY_FALL <= 2005 & EXPOSED > 0 & year_joinedFB <= 2005 ~ 2005,
-#       TRUE ~ 0  # Use NA_real_ for numeric NA
-#     )
-#   )
-# df_late5$year_joinedFB <- ifelse(is.na(df_late5$year_joinedFB), 0, df_late5$year_joinedFB)
-# df_late5$Treat4 <- ifelse(df_late5$year_joinedFB == 2004, 1, 0)
-# df_late5$Treat5 <- ifelse(df_late5$year_joinedFB == 2005, 1, 0)
-# 
-# # df1$first.treat <- ifelse(df1$EXPOSED > 0 & df1$year_joinedFB == 2004 & df1$year_treated == 2004 , df1$year_joinedFB, 0)
-# 
-# # STEP 2 : create a dummy variable for post-treatment period
-# # facebook rolled out in 2004, so 2000 cohort is the first post-treatment period
-# df_late5$post <- ifelse(df_late5$AY_FALL >= 2000, 1, 0)
-# df_late5$policy = ifelse(df_late5$Treat4 == 1 & df_late5$post == 1, 1, 
-#                          ifelse(df_late5$Treat5 == 1 & df_late5$post == 1, 1, 0))
-# df_late5$policy  
-# 
-# # Two-way fixed effects (TWFE) regression model ----
-# s5_mod <- lm(k_rank ~  policy + UNITID + factor(AY_FALL), data = df_late5)
-# tidy(s5_mod)
-# 
-# df_late5 %<>% mutate(UNITID_n = as.numeric(as.character(UNITID)),
-#                      policy_n = as.numeric(as.character(policy)))
-# 
+df4 <- df1
+
+df_late <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta")
+
+df_late %>%
+  select(UNITID, FBName, AY_FALL, DateJoinedFB, k_rank, EXPOSED, EXPOSURE_4YR) %>%
+  arrange(desc(AY_FALL))
+
+
+df_late5 = df_late  %>% # filter(FBName == "Harvard" | FBName == "Simmons" | FBName == " Alabama Huntsville" | 
+                                 #UNITID == 100937 | UNITID == 101435 ) %>%
+  # filter(AY_FALL < 2002) %>%
+  select(UNITID, FBName, AY_FALL, DateJoinedFB, k_rank, EXPOSED, EXPOSURE_4YR)
+
+##
+df_late5$UNITID = as.factor(df_late5$UNITID)
+df_late5$FBNAME1 = as.factor(df_late5$FBName)
+df_late5 %<>% mutate(ever_trt = case_when(FBName == "Harvard" | FBName == "Simmons"  ~ "treated in 2004",
+                                          FBName == " Alabama Huntsville" ~ "treated in 2005",
+                                          TRUE ~ "never treated"))
+
+ df_late5  %>% filter(FBName == "Harvard" | FBName == "Simmons" | FBName == " Alabama Huntsville" | 
+                       UNITID == 100937 | UNITID == 101435 ) %>%
+   ggplot(aes(x = AY_FALL, y = k_rank)) +
+  geom_line(aes(col = UNITID)) +
+  geom_point(aes(fill = FBNAME1, pch = ever_trt)) + labs(title = "Scenario 5 (Staggered timing)") +
+  geom_vline(aes(xintercept = 2000), lty = 2) + 
+  geom_vline(aes(xintercept = 2001), lty = 2)
+
+
+# now defining bunch of variables
+
+# # equivalent TWFE Regression model
+# df3$policy = df3$Treat * df3$post
+# r2 <- lm(k_rank ~ UNITID + AY_FALL + policy, data = df3)
+# summary(r2)
+
+df_late5$DateJoinedFB <- as.Date(df_late5$DateJoinedFB, format = "%m/%d/%Y")
+df_late5$year_joinedFB <- format(df_late5$DateJoinedFB, "%Y")
+
+df_late5 %<>%
+  mutate(
+    year_treated = case_when(
+      AY_FALL < 2004 & EXPOSED > 0 & year_joinedFB <= 2004  ~ 2004,
+      AY_FALL <= 2005 & EXPOSED > 0 & year_joinedFB <= 2005 ~ 2005,
+      TRUE ~ 0  # Use NA_real_ for numeric NA
+    )
+  )
+
+df_late5$year_joinedFB <- ifelse(is.na(df_late5$year_joinedFB), 0, df_late5$year_joinedFB)
+df_late5$Treat4 <- ifelse(df_late5$year_joinedFB == 2004, 1, 0)
+df_late5$Treat5 <- ifelse(df_late5$year_joinedFB == 2005, 1, 0)
+
+# df1$first.treat <- ifelse(df1$EXPOSED > 0 & df1$year_joinedFB == 2004 & df1$year_treated == 2004 , df1$year_joinedFB, 0)
+
+# STEP 2 : create a dummy variable for post-treatment period
+# facebook rolled out in 2004, so 2000 cohort is the first post-treatment period
+df_late5$post <- ifelse(df_late5$AY_FALL >= 2000, 1, 0)
+df_late5$policy = ifelse(df_late5$Treat4 == 1 & df_late5$post == 1, 1,
+                         ifelse(df_late5$Treat5 == 1 & df_late5$post == 1, 1, 0))
+
+# Two-way fixed effects (TWFE) regression model ----
+s5_mod <- lm(k_rank ~  policy + UNITID + factor(AY_FALL), data = df_late5)
+tidy(s5_mod)
+
+df_late5 %<>% mutate(UNITID_n = as.numeric(as.character(UNITID)),
+                     policy_n = as.numeric(as.character(policy)))
+
 # s5_bacon <- bacon(k_rank ~ policy_n,
 #                   data = df_late5,
 #                   id_var = "UNITID_n",
@@ -324,28 +328,90 @@ sum(df2$Treat * df2$post == 1)
 
 df1$first.treat <- ifelse(df1$EXPOSED > 0 & df1$year_joinedFB == 2004 & df1$year_treated == 2004 , df1$year_joinedFB, 0)
 # Run the TWFE regression
-# R0 <- feols(k_rank ~ Treat +factor(UNITID) + factor(AY_FALL), data = df1)
-r1 <- feols(k_rank ~ first.treat | UNITID + AY_FALL, data = df1) # r1 <- feols(k_rank ~ Treat + post + Treat * post | UNITID + AY_FALL, data = df1)
-summary(r1) #feols clusters by UNITID here by default
+
+rm(list=ls())
+
+library(fixest)
+library(haven)
+library(magrittr)
+library(dplyr)
+library(broom)
+library(ggplot2)
+library(binscatteR)
+library(did)
+library(etwfe)
+library(np)
 
 
-mod =
-  etwfe(
-    fml  =  k_rank ~ EXPOSED + simpletiershock, # outcome ~ controls
-    tvar = AY_FALL,        # time variable
-    gvar = first.treat, # group variable
-    data = df1,       # dataset
-    vcov = ~UNITID  # vcov adjustment (here: clustered)
+
+df <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta") %>% 
+  filter(twfe_sample == 1 & late_adopter == 0)
+
+
+df$k_rank <- df$k_rank * 100
+#excluding a specific observation 
+df <- filter(df, UNITID != 184694)
+# create + recode simplebarrons variable
+df$simplebarrons <- df$barrons
+df$simplebarrons <- as.numeric(as.character(df$simplebarrons))
+df$simplebarrons <- dplyr::recode(df$simplebarrons,
+                                  `0` = 1, `1` = 1,
+                                  `2` = 2, `3` = 2,
+                                  `4` = 3,
+                                  `5` = 4,
+                                  `999` = 9)
+
+# group data and generate identifiers
+df$simpletiershock <- as.integer(interaction(df$simplebarrons, df$AY_FALL, drop = TRUE))
+df <- fastDummies::dummy_cols(df, select_columns = "simpletiershock")
+
+df$DateJoinedFB <- as.Date(df$DateJoinedFB, format = "%m/%d/%Y")
+df$year_joinedFB <- format(df$DateJoinedFB, "%Y")
+df %<>% 
+  mutate(
+    year_treated = case_when(
+      AY_FALL <= 2004 & EXPOSED > 0 & year_joinedFB <= 2004  ~ 2004,
+      AY_FALL < 2005 & EXPOSED > 0 & year_joinedFB == 2005 ~ 2005,
+      AY_FALL < 2000 ~0, 
+      TRUE ~ 2006 # Default case if neither condition is met
+    )
   )
 
 
+df_post <- df %>%
+  filter(EXPOSED > 0) %>%
+  group_by(UNITID) %>%
+  summarise(year_post = min(AY_FALL))
+df1 <- left_join(df, df_post, by = "UNITID")
 
 
+df1 <- df1 %>% select(UNITID, FBName, AY_FALL, DateJoinedFB, year_treated, year_post, 
+                      k_rank, EXPOSED, EXPOSURE_4YR, simpletiershock, year_joinedFB, barrons, simpletier, 
+                      simplebarrons)
+# year = cohort. state = UNITID
+# year_treated = year that cohort had access to fb
+# k_rank rank of student in national cohort
+head(df1)
 
-# R0 <- feols(k_rank ~ Treat +factor(UNITID) + factor(AY_FALL), data = df1)
-r1 <- feols(k_rank ~ first.treat | UNITID + AY_FALL, data = df1) # r1 <- feols(k_rank ~ Treat + post + Treat * post | UNITID + AY_FALL, data = df1)
-summary(r1) #feols clusters by UNITID here by default
+df1$post <- ifelse(df1$AY_FALL >= df1$year_post, 1, 0)
 
+
+### 2 x 2 DiD
+# Step 1: Create a dummy variable for the treatment group
+
+df1$Treat <- ifelse(df1$EXPOSED > 0, 1, 0)
+df1$first.treat <- ifelse(df1$EXPOSED > 0 & df1$year_joinedFB == 2004 & df1$year_treated == 2004 , df1$year_joinedFB, 0)
+
+# create a dummy variable for post-treatment period
+df1$post <- ifelse(df1$year_joinedFB == 2004, 1, 0)
+
+df1 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB,  post, Treat, year_treated, first.treat)
+df1 %>% filter(UNITID == 100706) %>% select(FBName, AY_FALL, DateJoinedFB,  post, Treat, year_treated, first.treat)
+df1 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB,  post, Treat, year_treated, first.treat)
+
+sum(df1$Treat == 1)
+sum(df1$post == 1)
+sum(df1$Treat * df1$post == 1)
 
 
 mod =
@@ -385,73 +451,6 @@ emfx(hmod, hypothesis = "b1 = b2")
 emfx(hmod, hypothesis = "b1 = b2", type = "calendar")
 
 
-## staggered DiD
-df1$Treat <- ifelse(df1$EXPOSED > 0, 1, 0)
-df1$stag.treat <- ifelse(df1$EXPOSED > 0 & df1$year_joinedFB == 2004 & df1$year_treated == 2004 , df1$year_joinedFB, 
-                         ifelse(df1$EXPOSED > 0 & df1$year_joinedFB == 2005 & df1$year_treated == 2005, df1$year_joinedFB, 
-                                ifelse(df1$EXPOSED > 0 & df1$AY_FALL == 2005, 2005, 0)))
-
-# create a dummy variable for post-treatment period
-df1$post <- ifelse(df1$year_joinedFB == 2004, 1, 0)
-
-df1 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB,  post, Treat, year_treated, stag.treat)
-df1 %>% filter(UNITID == 100706) %>% select(FBName, AY_FALL, DateJoinedFB,  post, Treat, year_treated, stag.treat)
-df1 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB,  post, Treat, year_treated, stag.treat)
-
-sum(df1$stag.treat == 2004 | 2005)
-sum(df1$post == 1)
-sum(df1$Treat * df1$post == 1)
-
-r1 <- lm(k_rank ~ stag.treat * post, data = df1)
-summary(r1)
-
-
-# Run the TWFE regression
-# R0 <- feols(k_rank ~ Treat +factor(UNITID) + factor(AY_FALL), data = df1)
-r1 <- feols(k_rank ~ stag.treat | UNITID + AY_FALL, data = df1) # r1 <- feols(k_rank ~ Treat + post + Treat * post | UNITID + AY_FALL, data = df1)
-summary(r1) #feols clusters by UNITID here by default
-
-
-
-
-
-# mod =
-#   etwfe(
-#     fml  =  k_rank ~ EXPOSED + simpletiershock, # outcome ~ controls
-#     tvar = AY_FALL,        # time variable
-#     gvar = stag.treat, # group variable
-#     data = df1,       # dataset
-#     vcov = ~UNITID  # vcov adjustment (here: clustered)
-#   )
-# 
-# # M1 <- feols(k_rank ~ D | UNITID + simpletiershock, data = analysis_sample, vcov = "cluster")
-# # print(M1)
-# 
-# mod
-# emfx(mod) # ATT
-# 
-# mod_es = emfx(mod, type = "calendar") # ATT by period
-# mod_es
-# 
-# mod_es = emfx(mod, type = "group") # ATT by group
-# mod_es
-# 
-# # heterogenous treatment effects
-# hmod =
-#   etwfe(
-#     fml  =  k_rank ~ EXPOSED + simpletiershock, # outcome ~ controls
-#     tvar = AY_FALL,        # time variable
-#     gvar = stag.treat, # group variable
-#     data = df1,       # dataset
-#     vcov = ~UNITID,  # vcov adjustment (here: clustered)
-#     xvar = barrons # treatment variable
-#   )
-# 
-# emfx(hmod)
-# emfx(hmod, hypothesis = "b1 = b2")
-# emfx(hmod, hypothesis = "b1 = b2", type = "calendar")
-
-
 
 
 
@@ -464,7 +463,7 @@ summary(r1) #feols clusters by UNITID here by default
 # M1 <- feols(k_rank ~ EXPOSED * post | UNITID + simpletiershock, data = df1, vcov = "cluster")
 # summary(M1)
 
-# computes weights from TWFE regression ------------------------------------------
+# computes weights from TWFE regression 
 
 #' @param l a particular value of the treatment for which to compute weights
 #' @param D an nx1 vector containing doses for all units
@@ -614,45 +613,6 @@ twfe_weights_plot <- ggplot(data=plot_df,
 
 twfe_weights_plot
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# # synthetic control ------
-# library(Synth)
-# 
-# # Prepare the data
-# # Assuming your data is in a dataframe called 'df'
-# # 'outcome' is the variable you want to analyze
-# # 'time' is the time variable
-# # 'unit' is the unit identifier (e.g., state, country, etc.)
-# # 'treated' is a binary variable indicating the treated units
-# 
-# # Run the synthetic control
-# 
-# dataprep(foo = df1, predictors = c(")
-# 
-# sc_result <- synth(
-#   data = dfq,
-#   outcome.variable = "k_rank",
-#   unit.variable = "UNITID",
-#   time.variable = "AY_FALL",
-#   treatment.identifier = "Treat"
-# )
-# 
-# # Summarize the results
-# summary(sc_result)
 
 
 
