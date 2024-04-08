@@ -1,8 +1,6 @@
-## preliminary diff in diff, replication of ARMONA -----
-
 
 # ==============================================================================
-# Social Media and Labour market Outcomes
+# Social Media and Labour market Outcomes Continuous DiD
 # ==============================================================================
 #
 # Author: 10710007 &  &
@@ -10,6 +8,7 @@
 #
 # ==============================================================================
 
+## Section 1 : preliminary diff in diff, replication of ARMONA TWOWAYFE.do file --------
 rm(list = ls()) 
 
 # Packages
@@ -17,7 +16,7 @@ if (!requireNamespace("pacman", quietly = TRUE)) {
   install.packages("pacman")
 }
 
-pacman::p_load(dplyr, haven, magrittr, tidyverse, fixest, did, broom, fastDummies, sandwich, lmtest)
+pacman::p_load(dplyr, haven, magrittr, tidyverse, fixest, did, broom, fastDummies, sandwich, lmtest, TwoWayFEWeights)
 
 
 # DID_MULTIPLEGT FUNCTION 
@@ -51,7 +50,7 @@ major_controls <- grep("^major_", names(analysis_sample), value = TRUE)
 
 major_controls <- c(major_controls, "gradrate_150p")
 
-### TWOWAYFE.do ----
+
 
 #modify k rank variable
 analysis_sample$k_rank <- analysis_sample$k_rank * 100
@@ -98,7 +97,6 @@ ipeds_demos <- c("female", "hispanic", "asian", "black", "nativeamerican", "alie
 # Dynamically construct your formula
 independent_vars <- c("EXPOSED", eqopp_demos, ipeds_demos)
 formula_str <- paste("k_rank ~", paste(independent_vars, collapse = " + "), "| UNITID + simpletiershock")
-# Note: If 'k_married' should not be doubly included, adjust 'eqopp_demos' accordingly
 
 # Use the formula with the feols function
 m1 <- feols(as.formula(formula_str), data = analysis_sample_filtered, vcov = "cluster")
@@ -149,6 +147,9 @@ results1 <- did_multiplegt(
 
 weights1 <- TwoWayFEWeights::twowayfeweights(analysis_sample1, Y, G, T, D, type = ("feTR"), 
                                              controls = controls)
+# model summary of weights1 for exporting to google doc
+weights1
+
 
 summary(m1) #1 more ob
 summary(m2) # 100 mroe ob
@@ -185,7 +186,9 @@ results22 <- did_multiplegt_dyn(analysis_sample1,
 print(results22)
 
 
-### CONTINUOUS DIFF IN DIFF SIMULATION ----
+### Section 2 : CONTINUOUS DIFF IN DIFF SIMULATION ----
+# credit to https://mixtape-sessions.github.io/Frontiers-in-DID/Exercises/Exercise-2/exercise2a_sol.html
+# for the 2 cont DiD functions
 
 rm(list=ls())
 
@@ -279,22 +282,17 @@ cont_did <- function(dy, dose) {
 
 
 
-#' @hospital_id - @hospital identifier
-#' @d_capital_labor_ratio - the @change in the capital labor ratio for a hospital from 1983 to 1985, this is the (change in the) outcome variable
-#' @medicare_share_1983 - the @fraction of medicare patients in the hospital in 1983, this is the continuous treatment variable.
-
-
 cont_did_est <- function(data) {
   # Convert dose and dy using the 'data' argument
   dose <- as.vector(data$EXPOSURE_4YR)
-  dy <- as.vector(data$k_rank)
+  dy <- as.vector(data$d_k_rank)
   
   # First Plot: Histogram of dose
   p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
     geom_histogram()
   
   # Binscatter plot of the change in the outcome over time with respect to the dose
-  binnedout <- binscatter(data=data, x="EXPOSURE_4YR", y="k_rank")
+  binnedout <- binscatter(data=data, x="EXPOSURE_4YR", y="d_k_rank")
   
   # TWFE model
   twfe <- lm(dy ~ dose)
@@ -350,11 +348,13 @@ cont_did_est <- function(data) {
 }
 
 
+sim_results <- cont_did_est(analysis_sample_simulated)
 
 
 
-
-# CONTINUOUS DIFF IN DIFF ESTIMATION ------------------------------------------
+# SECTION 3 : CONTINUOUS DIFF IN DIFF ESTIMATION ------------------------------------------
+# credit to https://mixtape-sessions.github.io/Frontiers-in-DID/Exercises/Exercise-2/exercise2a_sol.html
+# for the 2 cont DiD functions
 
 rm(list=ls())
 
@@ -573,13 +573,7 @@ results_diff <- cont_did_est(analysis_sample_diff)
 
 
 
-
-
-
-
-#### figures ----------------------------------------------------------------
-
-
+# SECTION 4 : FINAL SECTION : Figures ----------------------------------------------------------------
 
 ## FIGURE 1 (from paper) ------------------------------------------
 # figure works, table doesnt
@@ -641,7 +635,7 @@ ggplot(combined_df, aes(x = date, y = fb_access, color = factor(tier))) +
   scale_color_manual(values = c("red", "blue", "green", "yellow", "purple", "orange")) # Customize as needed
 
 # Save the plot
-ggsave("../docs/figures/fb_rollout.pdf", width = 11, height = 8.5, dpi = 300)
+ggsave("../docs/figures/fb_rollout.png", width = 11, height = 8.5, dpi = 300)
 
 
 # plots --------------
@@ -701,7 +695,7 @@ ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank, color = as.factor(fi
   theme_minimal() +
   geom_vline(xintercept = 2000, linetype = "dashed")
 
-ggsave("../docs/figures/average_k_rank_treat_Exposed.pdf", width = 11, height = 8.5, dpi = 300)
+ggsave("../docs/figures/average_k_rank_treat_Exposed.png", width = 11, height = 8.5, dpi = 300)
 
 dfdf2$compet <- ifelse(dfdf2$barrons <=4, 1, 0)
 average_k_rank <- dfdf2 %>%
@@ -721,110 +715,5 @@ ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank,
   theme_minimal() +
   geom_vline(xintercept = 2000, color = "#00B0B9", linetype = "dashed") 
 
-ggsave("../docs/figures/average_k_rank_compet.pdf", width = 11, height = 8.5, dpi = 300)
+ggsave("../docs/figures/average_k_rank_compet.png", width = 11, height = 8.5, dpi = 300)
 
-
-# dfdf1$year_joinedFB <-  ifelse(is.na(dfdf1$year_joinedFB), 0, dfdf1$year_joinedFB)
-# 
-# dfdf1 <- dfdf1 %>%
-#   mutate(post = case_when(
-#     AY_FALL >= 2000 ~ 1, 
-#     TRUE ~ 0
-#   ))
-# 
-# dfdf1$year_joinedFB <- (as.numeric(dfdf2$year_joinedFB))
-# dfdf1$year_joinedFB <- ifelse(is.na(dfdf2$year_joinedFB), 0,dfdf2$year_joinedFB)
-# dfdf1$init.treat <- ifelse(dfdf2$year_joinedFB == 2004 & dfdf2$first.treat == 2004, 1,0)
-# 
-# # dfdf1 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
-# # dfdf1 %>% filter(UNITID == 100706) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
-# # dfdf1 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
-# 
-# dfdf2 <- dfdf1 %>% select(UNITID, FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post, 
-#                           k_rank, EXPOSED, EXPOSURE_4YR, year_joinedFB)
-# year = cohort. state = UNITID
-# year_treated = year that cohort had access to fb
-# k_rank rank of student in national cohort
-
-# Stagegred intro plot ------------------------------------------
-
-# # Create a unique identifier for each day and college combination
-# dfdf1 <- df1 %>%
-#   group_by(date, UNITID) %>%
-#   summarise()
-# 
-# # Create a sequence of dates for plotting
-# date_seq <- seq(from = min(dfdf1$date, na.rm = TRUE), to = max(dfdf1$date, na.rm = TRUE), by = "day")
-# 
-# # Calculate the cumulative number of colleges with FB access for each date
-# cumulative_df <- data.frame(date = date_seq)
-# cumulative_df$fb_access <- sapply(cumulative_df$date, function(d) {
-#   sum(dfdf1$date <= d, na.rm = TRUE)
-# })
-# 
-# # Normalizing fb_access to fraction by dividing by the total number of unique colleges
-# total_colleges <- length(unique(dfdf1$UNITID))
-# cumulative_df$fb_access <- cumulative_df$fb_access / total_colleges
-# 
-# # Plotting
-# ggplot(cumulative_df, aes(x = date, y = fb_access)) +
-#   geom_line() +
-#   labs(title = "Staggered Facebook Rollout Across Colleges",
-#        x = "Date",
-#        y = "Fraction of Colleges with FB Access") +
-#   theme_minimal() +
-#   scale_y_continuous(labels = scales::percent_format())
-
-# 
-# 
-# average_k_rank <- dfdf2 %>%
-#   group_by(AY_FALL, init.treat) %>%
-#   summarise(average_k_rank = mean(k_rank, na.rm = TRUE)) %>%
-#   ungroup() # Ensure the data is not grouped for plotting
-
-# # ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank)) +
-# #   geom_line(aes(color = as.factor(init.treat))) + # Use color to differentiate 'post' status
-# #   labs(title = "Average K_Rank by Cohort, Post, and Init.Treat Status",
-# #        x = "Cohort",
-# #        y = "Average K_Rank",
-# #        color = "Treat Status",
-# #        shape = "Init.Treat Status") +
-# #   theme_minimal() +
-# #   geom_vline(xintercept = 2000, linetype="dashed", color = "red") # Example vertical line for a significant year
-# 
-# dfdf2 %<>% filter(year_joinedFB == 2004 | year_joinedFB == 0)
-# 
-# dfdf2 <- dfdf2 %>%
-#   mutate(post = case_when(
-#     AY_FALL >= 2000 ~ 1, 
-#     TRUE ~ 0
-#   ))
-# 
-# dfdf2$year_joinedFB <- ifelse(is.na(dfdf2$year_joinedFB), 0,dfdf2$year_joinedFB)
-# dfdf2$init.treat <- ifelse(dfdf2$year_joinedFB == 2004 & dfdf2$first.treat == 2004, 1,0)
-# 
-# dfdf2 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
-# dfdf2 %>% filter(UNITID == 101435) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
-# dfdf2 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
-# 
-# dfdf2 <- dfdf2 %>% select(UNITID, FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post, 
-#                           k_rank, EXPOSED, EXPOSURE_4YR, year_joinedFB)
-# # year = cohort. state = UNITID
-# # year_treated = year that cohort had access to fb
-# # k_rank rank of student in national cohort
-# head(df1)
-# 
-# average_k_rank <- dfdf2 %>%
-#   group_by(AY_FALL, init.treat) %>%
-#   summarise(average_k_rank = mean(k_rank, na.rm = TRUE)) %>%
-#   ungroup() # Ensure the data is not grouped for plotting
-# 
-# ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank)) +
-#   geom_line(aes(color = as.factor(init.treat))) + # Use color to differentiate 'post' status
-#   labs(title = "Average K_Rank by Cohort, Post, and Init.Treat Status",
-#        x = "Cohort",
-#        y = "Average K_Rank",
-#        color = "Treat Status",
-#        shape = "Init.Treat Status") +
-#   theme_minimal() +
-#   geom_vline(xintercept = 2000, linetype="dashed", color = "red") # Example vertical line for a significant year
