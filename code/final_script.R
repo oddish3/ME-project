@@ -506,8 +506,11 @@ analysis_sample_diffs <- analysis_sample_cleaned %>%
          next_AY_FALL = lead(AY_FALL), # Get next year's AY_FALL
          d_k_rank = next_k_rank - k_rank) %>% # Calculate the difference
   ungroup() %>%
-  select(UNITID, AY_FALL, next_AY_FALL, d_k_rank, EXPOSURE_4YR) %>%
+  select(FBName, UNITID, AY_FALL, next_AY_FALL, k_rank, d_k_rank, EXPOSURE_4YR) %>%
   filter(!is.na(d_k_rank))
+
+# example of what the code does 
+analysis_sample_diffs %>% filter(FBName == "Harvard") %>% head(5)
 
 analysis_sample1999 <- analysis_sample_diffs[analysis_sample_diffs$AY_FALL <= 1999, ]
 analysis_sample2000 <- analysis_sample_diffs[analysis_sample_diffs$AY_FALL <= 2000, ]
@@ -598,8 +601,8 @@ results2004 <- cont_did_est(analysis_sample2004)
 
 #main results
 results_diff <- cont_did_est(analysis_sample_diffs)
-results_stag <- analysis_sample_diffs %>% filter(AY_FALL == 1999 | 2000) %>% cont_did_est() 
 
+# various plots have been saved from here by simply calling object and saving in IDE
 
 
 
