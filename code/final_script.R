@@ -598,7 +598,7 @@ results2004 <- cont_did_est(analysis_sample2004)
 
 #main results
 results_diff <- cont_did_est(analysis_sample_diffs)
-analysis_sample_diffs1 <- analysis_sample_diffs %>% filter(AY_FALL == 1999 | 2000) %>% cont_did_est() 
+results_stag <- analysis_sample_diffs %>% filter(AY_FALL == 1999 | 2000) %>% cont_did_est() 
 
 
 
