@@ -1,5 +1,5 @@
-  
-  devtools::install_github("shommazumder/binscatteR")
+ rm(list=ls()) 
+  #devtools::install_github("shommazumder/binscatteR")
   
   library(ggplot2)
   library(binscatteR)
@@ -52,9 +52,10 @@
   
   
   load("medicare1.RData")
+  summary(medicare1)
   # save as xslx file 
-  library(writexl)
-  write_xlsx(medicare1, "medicare1.xlsx")
+  # library(writexl)
+  # write_xlsx(medicare1, "medicare1.xlsx")
   
   
   #' @hospital_id - @hospital identifier
@@ -65,13 +66,13 @@
   
   # generating the ATT and plotting it
   dose <- seq(.01,.99,by=.01)
-  ATT <- -4*(dose-.5)^2 + 1
+  ATT <- -4*(dose-.5)^2 + 1 
   p <- ggplot(data.frame(ATT=ATT, dose=dose), aes(x=dose, y=ATT)) + 
     geom_line() + ylim(c(0,2))
   p
   
   # which implies the following average causal response to treatment
-  ACRT <- -8*(dose-.5)
+  ACRT <- -8*(dose-.5) 
   ggplot(data.frame(ACRT=ACRT, dose=dose), aes(x=dose, y=ACRT)) +
     geom_line() + ylim(c(-6,6))
   
@@ -82,48 +83,48 @@
   p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
     geom_histogram()
   p
-
-binnedout <- binscatter(data=medicare1, x="medicare_share_1983", y="d_capital_labor_ratio")
-binnedout
-
-summary(dose)
-summary(dy)
-
-
-twfe <- lm(dy ~ dose)
-summary(twfe)$coefficients
-
-cont_res <- cont_did(dy, dose)
-cont_res$att.overall
-
-cont_res$acrt.overall
-
-plot_df <- cont_res$local_effects
-
-colnames(plot_df) <- c("dose", "att", "acrt")
-ggplot(plot_df, aes(x=dose, att)) +
-  geom_hline(yintercept=0, color="red", linetype="dashed") +
-  geom_line() +
-  theme_bw()
-
-
-ggplot(plot_df, aes(x=dose, acrt)) +
-  geom_hline(yintercept=0, color="red", linetype="dashed") +
-  geom_line() +
-  theme_bw()
-
-
-dL <- min(dose[dose>0])
-dU <- max(dose)
-# density of the dose
-dose_grid <- seq(dL, dU, length.out=100)
-frq_weights_plot <- ggplot(data.frame(dose=dose[dose>0]), aes(x=dose)) +
-  geom_density(colour = "darkblue", linewidth = 1.2) +
-  xlim(c(min(dose_grid), max(dose_grid)))+
-  ylab("Density weights") +
-  xlab("Dose") +
-  ylim(c(0,3)) + 
-  labs(title="Density of dose")
+  
+  binnedout <- binscatter(data=medicare1, x="medicare_share_1983", y="d_capital_labor_ratio")
+  binnedout
+  
+  summary(dose)
+  summary(dy)
+  
+  
+  twfe <- lm(dy ~ dose)
+  summary(twfe)$coefficients
+  
+  cont_res <- cont_did(dy, dose)
+  cont_res$att.overall
+  
+  cont_res$acrt.overall
+  
+  plot_df <- cont_res$local_effects
+  
+  colnames(plot_df) <- c("dose", "att", "acrt")
+  ggplot(plot_df, aes(x=dose, att)) +
+    geom_hline(yintercept=0, color="red", linetype="dashed") +
+    geom_line() +
+    theme_bw()
+  
+  
+  ggplot(plot_df, aes(x=dose, acrt)) +
+    geom_hline(yintercept=0, color="red", linetype="dashed") +
+    geom_line() +
+    theme_bw()
+  
+  
+  dL <- min(dose[dose>0])
+  dU <- max(dose)
+  # density of the dose
+  dose_grid <- seq(dL, dU, length.out=100)
+  frq_weights_plot <- ggplot(data.frame(dose=dose[dose>0]), aes(x=dose)) +
+    geom_density(colour = "darkblue", linewidth = 1.2) +
+    xlim(c(min(dose_grid), max(dose_grid)))+
+    ylab("Density weights") +
+    xlab("Dose") +
+    ylim(c(0,3)) + 
+    labs(title="Density of dose")
 frq_weights_plot
 
 

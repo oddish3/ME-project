@@ -8,7 +8,14 @@ library(lmtest)
 library(magrittr)
 
 analysis_sample <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta") %>% 
-  filter(twfe_sample == 1 & late_adopter == 0)
+  filter(twfe_sample == 1 #& late_adopter == 0
+         ) %>%  filter(AY_FALL <=2005)
+
+
+
+ # %>% filter(AY_FALL <=2003)
+ # %>% filter(AY_FALL <=2002)
+ # %>% filter(AY_FALL <=2001)
 
 
 analysis_sample$k_rank <- analysis_sample$k_rank * 100
@@ -32,8 +39,8 @@ analysis_sample <- fastDummies::dummy_cols(analysis_sample, select_columns = "si
 
 analysis_sample$D <- ifelse(analysis_sample$EXPOSURE_4YR > 0, 1, 0)
 
-identical_elements <- analysis_sample$D == analysis_sample$EXPOSED
-identical_elements # basically same thing - few differences probably bc of samples (main / twfe?)
+#identical_elements <- analysis_sample$D == analysis_sample$EXPOSED
+#identical_elements # basically same thing - few differences probably bc of samples (main / twfe?)
 
 
 analysis_sample <- analysis_sample %>% mutate(t = case_when(
@@ -51,7 +58,6 @@ analysis_sample$G <- 0
 for (i in unique(analysis_sample$UNITID)){
   analysis_sample$G[analysis_sample$UNITID == i] <- min(analysis_sample$t[analysis_sample$UNITID == i & analysis_sample$D == 1])
 }  
-
 
 analysis_sample$R <- analysis_sample$t - analysis_sample$G + 1
 analysis_sample <- dummy_cols(analysis_sample, select_columns = "R")
@@ -81,7 +87,6 @@ analysis_sample$DateJoinedFB <- as.Date(analysis_sample$DateJoinedFB, format = "
 analysis_sample$year_treated <- format(analysis_sample$DateJoinedFB, "%Y")
 
 
-analysis_sample %>% select(UNITID, AY_FALL, year_treated)
 
 
 # computes weights from TWFE regression ------------------------------------------
@@ -147,7 +152,6 @@ binnedout
 twfe <- lm(dy ~ dose)
 summary(twfe)$coefficients
 
-
 # using the cont_did function provided above to estimate the ATT etc
 #Plot and as functions of the dose and provide estimates of ATT etc
 
@@ -169,7 +173,6 @@ ggplot(plot_df, aes(x=dose, acrt)) +
   geom_line() +
   theme_bw()
 
-
 dL <- min(dose[dose>0])
 dU <- max(dose)
 # density of the dose
@@ -182,7 +185,6 @@ frq_weights_plot <- ggplot(data.frame(dose=dose[dose>0]), aes(x=dose)) +
   ylim(c(0,3)) + 
   labs(title="Density of dose")
 frq_weights_plot
-
 
 twfe_weights <- sapply(dose_grid, cont_twfe_weights, D=dose)
 
@@ -206,16 +208,16 @@ twfe_weights_plot <- ggplot(data=plot_df,
 twfe_weights_plot
 
 
-devtools::install_github("bcallaway11/qte")
-devtools::install_github("bcallaway11/pte")
-devtools::install_github("bcallaway11/ife")
-devtools::install_github("bcallaway11/BMisc")
+# devtools::install_github("bcallaway11/qte")
+# devtools::install_github("bcallaway11/pte")
+# devtools::install_github("bcallaway11/ife")
+# devtools::install_github("bcallaway11/BMisc")
   
-library(qte) # for change-in-changes
-library(pte) # for lagged outcomes
-library(ife) # for interactive fixed effects
-library(BMisc)
-library(dplyr)
+# library(qte) # for change-in-changes
+# library(pte) # for lagged outcomes
+# library(ife) # for interactive fixed effects
+# library(BMisc)
+# library(dplyr)
 
 head(analysis_sample)
 

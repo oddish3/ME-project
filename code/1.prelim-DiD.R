@@ -27,7 +27,7 @@ if (!"DIDmultiplegt" %in% rownames(installed.packages())) {
 }
 
 # Load DIDmultiplegt
-pacman::p_load(DIDmultiplegt)
+pacman::p_load(DIDmultiplegt, DIDmultiplegtDYN)
 
 # Data 
 
@@ -145,15 +145,41 @@ results1 <- did_multiplegt(
   T = T,
   D = D,
   controls = controls,
-  brep      = 10,                  # no. of bootstraps (required for SEs)
+  #brep      = 4,                  # no. of bootstraps (required for SEs)
   cluster   = 'UNITID',                # variable to cluster SEs on
-  parallel  = TRUE                 # run the bootstraps in parallel
 )
 
 summary(m1) #1 more ob
 summary(m2) # 100 mroe ob
 print(results1)
 
+results2 <- did_multiplegt(
+  df = analysis_sample1,
+  Y = Y,
+  G = G,
+  T = T,
+  D = "EXPOSURE_4YR",
+  controls = controls,
+  #brep      = 4,                  # no. of bootstraps (required for SEs)
+  cluster   = 'UNITID',                # variable to cluster SEs on
+)
+print(results2)
 
+results11 <- did_multiplegt_dyn(analysis_sample1, 
+                                Y, 
+                                G,
+                                T, 
+                                D, 
+                                controls = controls, 
+                                #cluster = 'UNITID'
+                                )
+print(results11)
 
+results22 <- did_multiplegt_dyn(analysis_sample1, 
+                                Y, 
+                                G,
+                                T, 
+                                "EXPOSURE_4YR", 
+                                controls = controls)
+print(results22)
 
