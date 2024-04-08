@@ -147,6 +147,9 @@ results1 <- did_multiplegt(
   cluster   = 'UNITID',                # variable to cluster SEs on
 )
 
+weights1 <- TwoWayFEWeights::twowayfeweights(analysis_sample1, Y, G, T, D, type = ("feTR"), 
+                                             controls = controls)
+
 summary(m1) #1 more ob
 summary(m2) # 100 mroe ob
 print(results1)
@@ -281,93 +284,77 @@ cont_did <- function(dy, dose) {
 #' @medicare_share_1983 - the @fraction of medicare patients in the hospital in 1983, this is the continuous treatment variable.
 
 
-# generating the ATT and plotting it
-dose <- seq(.01,.99,by=.01)
-ATT <- -4*(dose-.5)^2 + 1 
-p <- ggplot(data.frame(ATT=ATT, dose=dose), aes(x=dose, y=ATT)) + 
-  geom_line() + ylim(c(0,2))
-p
-
-# which implies the following average causal response to treatment
-ACRT <- -8*(dose-.5) 
-ggplot(data.frame(ACRT=ACRT, dose=dose), aes(x=dose, y=ACRT)) +
-  geom_line() + ylim(c(-6,6))
-
-# ex 1 - plotting histogram
-dose <- analysis_sample_simulated$EXPOSURE_4YR
-dy <- analysis_sample_simulated$d_k_rank
-
-p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
-  geom_histogram()
-p
-
-binnedout <- binscatter(data=analysis_sample_simulated, x="EXPOSURE_4YR", y="d_k_rank")
-binnedout
-
-summary(dose)
-summary(dy)
-
-twfe <- lm(dy ~ dose)
-summary(twfe)$coefficients
-
-cont_res <- cont_did(dy, dose)
-cont_res$att.overall
-
-cont_res$acrt.overall
-
-plot_df <- cont_res$local_effects
-
-colnames(plot_df) <- c("dose", "att", "acrt")
-ggplot(plot_df, aes(x=dose, att)) +
-  geom_hline(yintercept=0, color="red", linetype="dashed") +
-  geom_line() +
-  theme_bw()
-
-
-ggplot(plot_df, aes(x=dose, acrt)) +
-  geom_hline(yintercept=0, color="red", linetype="dashed") +
-  geom_line() +
-  theme_bw()
-
-dL <- min(dose[dose>0])
-dU <- max(dose)
-# density of the dose
-dose_grid <- seq(dL, dU, length.out=100)
-frq_weights_plot <- ggplot(data.frame(dose=dose[dose>0]), aes(x=dose)) +
-  geom_density(colour = "darkblue", linewidth = 1.2) +
-  xlim(c(min(dose_grid), max(dose_grid)))+
-  ylab("Density weights") +
-  xlab("Dose") +
-  ylim(c(0,3)) + 
-  labs(title="Density of dose")
-frq_weights_plot
-
-twfe_weights <- sapply(dose_grid, cont_twfe_weights, D=dose)
-
-plot_df <- cbind.data.frame(twfe_weights, dose_grid)
-
-twfe_weights_plot <- ggplot(data=plot_df,
-                            mapping=aes(x = dose_grid,
-                                        y = twfe_weights)) +
-  geom_line(colour = "darkblue", linewidth = 1.2) +
-  xlim(c(min(dose_grid),
-         max(dose_grid)))+
-  ylab("TWFE weights") +
-  xlab("Dose") +
-  geom_vline(xintercept = mean(dose),
-             colour="black",
-             linewidth = 0.5,
-             linetype = "dotted") +
-  ylim(c(0,3)) +
-  labs(title="TWFE weights")
-
-twfe_weights_plot
+cont_did_est <- function(data) {
+  # Convert dose and dy using the 'data' argument
+  dose <- as.vector(data$EXPOSURE_4YR)
+  dy <- as.vector(data$k_rank)
+  
+  # First Plot: Histogram of dose
+  p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
+    geom_histogram()
+  
+  # Binscatter plot of the change in the outcome over time with respect to the dose
+  binnedout <- binscatter(data=data, x="EXPOSURE_4YR", y="k_rank")
+  
+  # TWFE model
+  twfe <- lm(dy ~ dose)
+  twfe_summary <- summary(twfe)$coefficients
+  
+  # Using the cont_did function to estimate the ATT etc.
+  cont_res <- cont_did(dy, dose)
+  
+  # Plots as functions of the dose and estimates of ATT etc.
+  plot_df <- cont_res$local_effects
+  colnames(plot_df) <- c("dose", "att", "acrt")
+  
+  att_plot <- ggplot(plot_df, aes(x=dose, y=att)) +
+    geom_hline(yintercept=0, color="red", linetype="dashed") +
+    geom_line() +
+    theme_bw()
+  
+  acrt_plot <- ggplot(plot_df, aes(x=dose, y=acrt)) +
+    geom_hline(yintercept=0, color="red", linetype="dashed") +
+    geom_line() +
+    theme_bw()
+  
+  # Density of the dose
+  dL <- min(dose[dose>0])
+  dU <- max(dose)
+  dose_grid <- seq(dL, dU, length.out=100)
+  frq_weights_plot <- ggplot(data.frame(dose=dose[dose>0]), aes(x=dose)) +
+    geom_density(colour = "darkblue", linewidth = 1.2) +
+    xlim(c(min(dose_grid), max(dose_grid))) +
+    ylab("Density weights") +
+    xlab("Dose") +
+    ylim(c(0,3)) + 
+    labs(title="Density of dose")
+  
+  # TWFE weights
+  twfe_weights <- sapply(dose_grid, cont_twfe_weights, D=dose)
+  plot_df <- cbind.data.frame(twfe_weights, dose_grid)
+  
+  twfe_weights_plot <- ggplot(data=plot_df,
+                              mapping=aes(x = dose_grid, y = twfe_weights)) +
+    geom_line(colour = "darkblue", linewidth = 1.2) +
+    xlim(c(min(dose_grid), max(dose_grid))) +
+    ylab("TWFE weights") +
+    xlab("Dose") +
+    geom_vline(xintercept = mean(dose), colour="black", linewidth = 0.5, linetype = "dotted") +
+    ylim(c(0,3)) +
+    labs(title="TWFE weights")
+  
+  # Return a list of all the generated results
+  return(list(histogram=p, binscatter=binnedout, twfe_summary=twfe_summary, 
+              att_plot=att_plot, acrt_plot=acrt_plot, frq_weights_plot=frq_weights_plot, 
+              twfe_weights_plot=twfe_weights_plot))
+}
 
 
 
 
 
-# CONTINUOUS DIFF IN DIFF ESTIMATION
+
+# CONTINUOUS DIFF IN DIFF ESTIMATION ------------------------------------------
 
 rm(list=ls())
 
@@ -495,310 +482,15 @@ cont_did <- function(dy, dose) {
 }
 
 
-# break down by years treated ----------------------------------------------------------
-
-# 1 years treated ----------------------------------------------------------
-
-analysis_sample1 <- analysis_sample[analysis_sample$EXPOSURE_4YR <=1, ]
-# plotting histogram
-dose <- as.vector(analysis_sample1$EXPOSURE_4YR)
-dy <- as.vector(analysis_sample1$k_rank)
-
-p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
-  geom_histogram()
-p
-
-# The histogram show that a non-trivial fraction of units are untreated whist there is no real
-# pattern to the rest, bar the bunching at 4 years.
-# binscatter plot of the change in the outcome over time with respect to the dose
-binnedout <- binscatter(data=analysis_sample1, x="EXPOSURE_4YR", y="k_rank")
-binnedout
-
-twfe <- lm(dy ~ dose)
-summary(twfe)$coefficients
-
-# using the cont_did function provided above to estimate the ATT etc
-#Plot and as functions of the dose and provide estimates of ATT etc
-
-cont_res <- cont_did(dy, dose)
-
-cont_res$att.overall
-cont_res$acrt.overall
-
-plot_df <- cont_res$local_effects
-
-colnames(plot_df) <- c("dose", "att", "acrt")
-ggplot(plot_df, aes(x=dose, att)) +
-  geom_hline(yintercept=0, color="red", linetype="dashed") +
-  geom_line() +
-  theme_bw()
-
-ggplot(plot_df, aes(x=dose, acrt)) +
-  geom_hline(yintercept=0, color="red", linetype="dashed") +
-  geom_line() +
-  theme_bw()
-
-dL <- min(dose[dose>0])
-dU <- max(dose)
-# density of the dose
-dose_grid <- seq(dL, dU, length.out=100)
-frq_weights_plot <- ggplot(data.frame(dose=dose[dose>0]), aes(x=dose)) +
-  geom_density(colour = "darkblue", linewidth = 1.2) +
-  xlim(c(min(dose_grid), max(dose_grid)))+
-  ylab("Density weights") +
-  xlab("Dose") +
-  ylim(c(0,3)) + 
-  labs(title="Density of dose")
-frq_weights_plot
-
-twfe_weights <- sapply(dose_grid, cont_twfe_weights, D=dose)
-
-plot_df <- cbind.data.frame(twfe_weights, dose_grid)
-
-twfe_weights_plot <- ggplot(data=plot_df,
-                            mapping=aes(x = dose_grid,
-                                        y = twfe_weights)) +
-  geom_line(colour = "darkblue", linewidth = 1.2) +
-  xlim(c(min(dose_grid),
-         max(dose_grid)))+
-  ylab("TWFE weights") +
-  xlab("Dose") +
-  geom_vline(xintercept = mean(dose),
-             colour="black",
-             linewidth = 0.5,
-             linetype = "dotted") +
-  ylim(c(0,3)) +
-  labs(title="TWFE weights")
-
-twfe_weights_plot
-
-# year treated 2 ----------------------------------------------------------
-analysis_sample1 <- analysis_sample[analysis_sample$EXPOSURE_4YR <=2, ]
-# plotting histogram
-dose <- as.vector(analysis_sample1$EXPOSURE_4YR)
-dy <- as.vector(analysis_sample1$k_rank)
-
-p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
-  geom_histogram()
-p
-
-# The histogram show that a non-trivial fraction of units are untreated whist there is no real
-# pattern to the rest, bar the bunching at 4 years.
-# binscatter plot of the change in the outcome over time with respect to the dose
-binnedout <- binscatter(data=analysis_sample1, x="EXPOSURE_4YR", y="k_rank")
-binnedout
-
-twfe <- lm(dy ~ dose)
-summary(twfe)$coefficients
-
-# using the cont_did function provided above to estimate the ATT etc
-#Plot and as functions of the dose and provide estimates of ATT etc
-
-cont_res <- cont_did(dy, dose)
-
-cont_res$att.overall
-cont_res$acrt.overall
-
-plot_df <- cont_res$local_effects
-
-colnames(plot_df) <- c("dose", "att", "acrt")
-ggplot(plot_df, aes(x=dose, att)) +
-  geom_hline(yintercept=0, color="red", linetype="dashed") +
-  geom_line() +
-  theme_bw()
-
-ggplot(plot_df, aes(x=dose, acrt)) +
-  geom_hline(yintercept=0, color="red", linetype="dashed") +
-  geom_line() +
-  theme_bw()
-
-dL <- min(dose[dose>0])
-dU <- max(dose)
-# density of the dose
-dose_grid <- seq(dL, dU, length.out=100)
-frq_weights_plot <- ggplot(data.frame(dose=dose[dose>0]), aes(x=dose)) +
-  geom_density(colour = "darkblue", linewidth = 1.2) +
-  xlim(c(min(dose_grid), max(dose_grid)))+
-  ylab("Density weights") +
-  xlab("Dose") +
-  ylim(c(0,3)) + 
-  labs(title="Density of dose")
-frq_weights_plot
-
-twfe_weights <- sapply(dose_grid, cont_twfe_weights, D=dose)
-
-plot_df <- cbind.data.frame(twfe_weights, dose_grid)
-
-twfe_weights_plot <- ggplot(data=plot_df,
-                            mapping=aes(x = dose_grid,
-                                        y = twfe_weights)) +
-  geom_line(colour = "darkblue", linewidth = 1.2) +
-  xlim(c(min(dose_grid),
-         max(dose_grid)))+
-  ylab("TWFE weights") +
-  xlab("Dose") +
-  geom_vline(xintercept = mean(dose),
-             colour="black",
-             linewidth = 0.5,
-             linetype = "dotted") +
-  ylim(c(0,3)) +
-  labs(title="TWFE weights")
-
-twfe_weights_plot
-
-
-# year treated 3 ----------------------------------------------------------
-
-analysis_sample1 <- analysis_sample[analysis_sample$EXPOSURE_4YR <=3, ]
-# plotting histogram
-dose <- as.vector(analysis_sample1$EXPOSURE_4YR)
-dy <- as.vector(analysis_sample1$k_rank)
-
-p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
-  geom_histogram()
-p
-
-# The histogram show that a non-trivial fraction of units are untreated whist there is no real
-# pattern to the rest, bar the bunching at 4 years.
-# binscatter plot of the change in the outcome over time with respect to the dose
-binnedout <- binscatter(data=analysis_sample1, x="EXPOSURE_4YR", y="k_rank")
-binnedout
-
-twfe <- lm(dy ~ dose)
-summary(twfe)$coefficients
-
-# using the cont_did function provided above to estimate the ATT etc
-#Plot and as functions of the dose and provide estimates of ATT etc
-
-cont_res <- cont_did(dy, dose)
-
-cont_res$att.overall
-cont_res$acrt.overall
-
-plot_df <- cont_res$local_effects
-
-colnames(plot_df) <- c("dose", "att", "acrt")
-ggplot(plot_df, aes(x=dose, att)) +
-  geom_hline(yintercept=0, color="red", linetype="dashed") +
-  geom_line() +
-  theme_bw()
-
-ggplot(plot_df, aes(x=dose, acrt)) +
-  geom_hline(yintercept=0, color="red", linetype="dashed") +
-  geom_line() +
-  theme_bw()
-
-dL <- min(dose[dose>0])
-dU <- max(dose)
-# density of the dose
-dose_grid <- seq(dL, dU, length.out=100)
-frq_weights_plot <- ggplot(data.frame(dose=dose[dose>0]), aes(x=dose)) +
-  geom_density(colour = "darkblue", linewidth = 1.2) +
-  xlim(c(min(dose_grid), max(dose_grid)))+
-  ylab("Density weights") +
-  xlab("Dose") +
-  ylim(c(0,3)) + 
-  labs(title="Density of dose")
-frq_weights_plot
-
-twfe_weights <- sapply(dose_grid, cont_twfe_weights, D=dose)
-
-plot_df <- cbind.data.frame(twfe_weights, dose_grid)
-
-twfe_weights_plot <- ggplot(data=plot_df,
-                            mapping=aes(x = dose_grid,
-                                        y = twfe_weights)) +
-  geom_line(colour = "darkblue", linewidth = 1.2) +
-  xlim(c(min(dose_grid),
-         max(dose_grid)))+
-  ylab("TWFE weights") +
-  xlab("Dose") +
-  geom_vline(xintercept = mean(dose),
-             colour="black",
-             linewidth = 0.5,
-             linetype = "dotted") +
-  ylim(c(0,3)) +
-  labs(title="TWFE weights")
-
-twfe_weights_plot
-
-# years treated 4 full sample ----------------------------------------------------------
-
-analysis_sample1 <- analysis_sample[analysis_sample$EXPOSURE_4YR <=4, ]
-# plotting histogram
-dose <- as.vector(analysis_sample1$EXPOSURE_4YR)
-dy <- as.vector(analysis_sample1$k_rank)
-
-p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
-  geom_histogram()
-p
-
-# The histogram show that a non-trivial fraction of units are untreated whist there is no real
-# pattern to the rest, bar the bunching at 4 years.
-# binscatter plot of the change in the outcome over time with respect to the dose
-binnedout <- binscatter(data=analysis_sample1, x="EXPOSURE_4YR", y="k_rank")
-binnedout
-
-twfe <- lm(dy ~ dose)
-summary(twfe)$coefficients
-
-# using the cont_did function provided above to estimate the ATT etc
-#Plot and as functions of the dose and provide estimates of ATT etc
-
-cont_res <- cont_did(dy, dose)
-
-cont_res$att.overall
-cont_res$acrt.overall
-
-plot_df <- cont_res$local_effects
-
-colnames(plot_df) <- c("dose", "att", "acrt")
-ggplot(plot_df, aes(x=dose, att)) +
-  geom_hline(yintercept=0, color="red", linetype="dashed") +
-  geom_line() +
-  theme_bw()
-
-ggplot(plot_df, aes(x=dose, acrt)) +
-  geom_hline(yintercept=0, color="red", linetype="dashed") +
-  geom_line() +
-  theme_bw()
-
-dL <- min(dose[dose>0])
-dU <- max(dose)
-# density of the dose
-dose_grid <- seq(dL, dU, length.out=100)
-frq_weights_plot <- ggplot(data.frame(dose=dose[dose>0]), aes(x=dose)) +
-  geom_density(colour = "darkblue", linewidth = 1.2) +
-  xlim(c(min(dose_grid), max(dose_grid)))+
-  ylab("Density weights") +
-  xlab("Dose") +
-  ylim(c(0,3)) + 
-  labs(title="Density of dose")
-frq_weights_plot
-
-twfe_weights <- sapply(dose_grid, cont_twfe_weights, D=dose)
-
-plot_df <- cbind.data.frame(twfe_weights, dose_grid)
-
-twfe_weights_plot <- ggplot(data=plot_df,
-                            mapping=aes(x = dose_grid,
-                                        y = twfe_weights)) +
-  geom_line(colour = "darkblue", linewidth = 1.2) +
-  xlim(c(min(dose_grid),
-         max(dose_grid)))+
-  ylab("TWFE weights") +
-  xlab("Dose") +
-  geom_vline(xintercept = mean(dose),
-             colour="black",
-             linewidth = 0.5,
-             linetype = "dotted") +
-  ylim(c(0,3)) +
-  labs(title="TWFE weights")
-
-twfe_weights_plot
-
-## k_rank_diff calc ----------------------------------------------------------
-one <- analysis_sample %>%
+# main analysis - break down by years treated ----------------------------------------------------------
+
+# subset data
+analysis_sample2001 <- analysis_sample[analysis_sample$AY_FALL <= 2001, ]
+analysis_sample2002 <- analysis_sample[analysis_sample$AY_FALL <= 2002, ]
+analysis_sample2003 <- analysis_sample[analysis_sample$AY_FALL <= 2003, ]
+analysis_sample2004 <- analysis_sample[analysis_sample$AY_FALL <= 2004, ]
+analysis_sample2005 <- analysis_sample[analysis_sample$AY_FALL <= 2005, ]
+analysis_sample_diff <- analysis_sample %>%
   group_by(UNITID) %>%
   mutate(d_k_rank = if_else(AY_FALL == "1999",
                             k_rank - k_rank[AY_FALL == "2001"][1],
@@ -806,79 +498,78 @@ one <- analysis_sample %>%
   ungroup() %>%
   filter(AY_FALL == "2000")
 
-# plotting histogram
-dose <- as.vector(one$EXPOSURE_4YR)
-dy <- as.vector(one$k_rank)
 
-p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
-  geom_histogram()
-p
+cont_did_est <- function(data) {
+  # Convert dose and dy using the 'data' argument
+  dose <- as.vector(data$EXPOSURE_4YR)
+  dy <- as.vector(data$k_rank)
+  
+  # First Plot: Histogram of dose
+  p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
+    geom_histogram()
+  
+  # Binscatter plot of the change in the outcome over time with respect to the dose
+  binnedout <- binscatter(data=data, x="EXPOSURE_4YR", y="k_rank")
+  
+  # TWFE model
+  twfe <- lm(dy ~ dose)
+  twfe_summary <- summary(twfe)$coefficients
+  
+  # Using the cont_did function to estimate the ATT etc.
+  cont_res <- cont_did(dy, dose)
+  
+  # Plots as functions of the dose and estimates of ATT etc.
+  plot_df <- cont_res$local_effects
+  colnames(plot_df) <- c("dose", "att", "acrt")
+  
+  att_plot <- ggplot(plot_df, aes(x=dose, y=att)) +
+    geom_hline(yintercept=0, color="red", linetype="dashed") +
+    geom_line() +
+    theme_bw()
+  
+  acrt_plot <- ggplot(plot_df, aes(x=dose, y=acrt)) +
+    geom_hline(yintercept=0, color="red", linetype="dashed") +
+    geom_line() +
+    theme_bw()
+  
+  # Density of the dose
+  dL <- min(dose[dose>0])
+  dU <- max(dose)
+  dose_grid <- seq(dL, dU, length.out=100)
+  frq_weights_plot <- ggplot(data.frame(dose=dose[dose>0]), aes(x=dose)) +
+    geom_density(colour = "darkblue", linewidth = 1.2) +
+    xlim(c(min(dose_grid), max(dose_grid))) +
+    ylab("Density weights") +
+    xlab("Dose") +
+    ylim(c(0,3)) + 
+    labs(title="Density of dose")
+  
+  # TWFE weights
+  twfe_weights <- sapply(dose_grid, cont_twfe_weights, D=dose)
+  plot_df <- cbind.data.frame(twfe_weights, dose_grid)
+  
+  twfe_weights_plot <- ggplot(data=plot_df,
+                              mapping=aes(x = dose_grid, y = twfe_weights)) +
+    geom_line(colour = "darkblue", linewidth = 1.2) +
+    xlim(c(min(dose_grid), max(dose_grid))) +
+    ylab("TWFE weights") +
+    xlab("Dose") +
+    geom_vline(xintercept = mean(dose), colour="black", linewidth = 0.5, linetype = "dotted") +
+    ylim(c(0,3)) +
+    labs(title="TWFE weights")
+  
+  # Return a list of all the generated results
+  return(list(histogram=p, binscatter=binnedout, twfe_summary=twfe_summary, 
+              att_plot=att_plot, acrt_plot=acrt_plot, frq_weights_plot=frq_weights_plot, 
+              twfe_weights_plot=twfe_weights_plot))
+}
 
-# The histogram show that a non-trivial fraction of units are untreated whist there is no real
-# pattern to the rest, bar the bunching at 4 years.
-# binscatter plot of the change in the outcome over time with respect to the dose
-binnedout <- binscatter(data=one, x="EXPOSURE_4YR", y="k_rank")
-binnedout
-
-twfe <- lm(dy ~ dose)
-summary(twfe)$coefficients
-
-# using the cont_did function provided above to estimate the ATT etc
-#Plot and as functions of the dose and provide estimates of ATT etc
-
-cont_res <- cont_did(dy, dose)
-
-cont_res$att.overall
-cont_res$acrt.overall
-
-plot_df <- cont_res$local_effects
-
-colnames(plot_df) <- c("dose", "att", "acrt")
-ggplot(plot_df, aes(x=dose, att)) +
-  geom_hline(yintercept=0, color="red", linetype="dashed") +
-  geom_line() +
-  theme_bw()
-
-ggplot(plot_df, aes(x=dose, acrt)) +
-  geom_hline(yintercept=0, color="red", linetype="dashed") +
-  geom_line() +
-  theme_bw()
-
-dL <- min(dose[dose>0])
-dU <- max(dose)
-# density of the dose
-dose_grid <- seq(dL, dU, length.out=100)
-frq_weights_plot <- ggplot(data.frame(dose=dose[dose>0]), aes(x=dose)) +
-  geom_density(colour = "darkblue", linewidth = 1.2) +
-  xlim(c(min(dose_grid), max(dose_grid)))+
-  ylab("Density weights") +
-  xlab("Dose") +
-  ylim(c(0,3)) + 
-  labs(title="Density of dose")
-frq_weights_plot
-
-twfe_weights <- sapply(dose_grid, cont_twfe_weights, D=dose)
-
-plot_df <- cbind.data.frame(twfe_weights, dose_grid)
-
-twfe_weights_plot <- ggplot(data=plot_df,
-                            mapping=aes(x = dose_grid,
-                                        y = twfe_weights)) +
-  geom_line(colour = "darkblue", linewidth = 1.2) +
-  xlim(c(min(dose_grid),
-         max(dose_grid)))+
-  ylab("TWFE weights") +
-  xlab("Dose") +
-  geom_vline(xintercept = mean(dose),
-             colour="black",
-             linewidth = 0.5,
-             linetype = "dotted") +
-  labs(title="TWFE weights")
-
-twfe_weights_plot
-
-
-
+results2001 <- cont_did_est(analysis_sample2001)
+results2002 <- cont_did_est(analysis_sample2002)
+results2003 <- cont_did_est(analysis_sample2003)
+results2004 <- cont_did_est(analysis_sample2004)
+results2005 <- cont_did_est(analysis_sample2005)
+results_diff <- cont_did_est(analysis_sample_diff)
 
 
 
@@ -892,13 +583,11 @@ twfe_weights_plot
 
 ## FIGURE 1 (from paper) ------------------------------------------
 # figure works, table doesnt
-rm(list=ls())
-# Load necessary libraries
-library(tidyverse)
-library(lubridate)
 
 rm(list=ls())
-df <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta")
+
+df <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta") %>% 
+  filter(twfe_sample == 1) 
 
 # Keep the necessary columns
 df1 <- df %>% select(simpletier, DateJoinedFB, FBName, super_opeid, barrons, UNITID, late_adopter, EXPOSED, EXPOSURE_4YR, k_rank, AY_FALL)
@@ -952,41 +641,11 @@ ggplot(combined_df, aes(x = date, y = fb_access, color = factor(tier))) +
   scale_color_manual(values = c("red", "blue", "green", "yellow", "purple", "orange")) # Customize as needed
 
 # Save the plot
-#ggsave("fb_rollout.pdf", width = 11, height = 8.5, dpi = 300)
+ggsave("../docs/figures/fb_rollout.pdf", width = 11, height = 8.5, dpi = 300)
 
 
-# Stagegred intro plot ------------------------------------------
+# plots --------------
 
-# Create a unique identifier for each day and college combination
-dfdf1 <- df1 %>%
-  group_by(date, UNITID) %>%
-  summarise()
-
-# Create a sequence of dates for plotting
-date_seq <- seq(from = min(dfdf1$date, na.rm = TRUE), to = max(dfdf1$date, na.rm = TRUE), by = "day")
-
-# Calculate the cumulative number of colleges with FB access for each date
-cumulative_df <- data.frame(date = date_seq)
-cumulative_df$fb_access <- sapply(cumulative_df$date, function(d) {
-  sum(dfdf1$date <= d, na.rm = TRUE)
-})
-
-# Normalizing fb_access to fraction by dividing by the total number of unique colleges
-total_colleges <- length(unique(dfdf1$UNITID))
-cumulative_df$fb_access <- cumulative_df$fb_access / total_colleges
-
-# Plotting
-ggplot(cumulative_df, aes(x = date, y = fb_access)) +
-  geom_line() +
-  labs(title = "Staggered Facebook Rollout Across Colleges",
-       x = "Date",
-       y = "Fraction of Colleges with FB Access") +
-  theme_minimal() +
-  scale_y_continuous(labels = scales::percent_format())
-
-
-
-# DiD plots? --------------
 dfdf2 = df %>%  select(simpletier, DateJoinedFB, FBName, super_opeid, barrons, UNITID, late_adopter, EXPOSED, EXPOSURE_4YR, k_rank, AY_FALL)
 
 dfdf2$DateJoinedFB <- as.Date(dfdf2$DateJoinedFB, format = "%m/%d/%Y")
@@ -1010,7 +669,7 @@ dfdf2$DateJoinedFB <- as.Date(dfdf2$DateJoinedFB, format = "%m/%d/%Y")
 dfdf2$year_joinedFB <- format(dfdf2$DateJoinedFB, "%Y")
 
 # Create year_treated variable
-dfdf <- dfdf2 %>% 
+dfdf1<- dfdf2 %>% 
   mutate(
     year_treated = case_when(
       AY_FALL <= 2004 & EXPOSED > 0 & year_joinedFB <= 2004  ~ 2004,
@@ -1019,132 +678,153 @@ dfdf <- dfdf2 %>%
     )
   )
 
-harvard <- dfdf %>%  select(FBName, AY_FALL, DateJoinedFB, year_treated,  EXPOSED, EXPOSURE_4YR, UNITID) %>% filter(UNITID == 166027) 
-harvard
-
-
-ggplot(dfdf, aes(x = AY_FALL, y = k_rank, color = as.factor(year_treated))) +
-  geom_point() +
-  theme_minimal()
-
 # 1.5 binary treatment (2004) ------
-dfdf1 = dfdf
-
-# dfdf1$first.treat <- as.numeric(ifelse(dfdf1$EXPOSED > 0 & dfdf1$year_joinedFB == 2004 & dfdf1$year_treated == 2004 & dfdf1$AY_FALL <2004 , 1, 0))
 
 dfdf1 <- dfdf1 %>%
   group_by(UNITID) %>%
   mutate(first.treat = ifelse(any(year_treated == 2004), 1, 0)) %>%
   ungroup()
 
-dfdf1 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat)
-dfdf1 %>% filter(UNITID == 100706) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat)
-dfdf1 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat)
-
 dfdf2 <- dfdf1 #%>% filter(AY_FALL <= 2000) 
 
-
 average_k_rank <- dfdf2 %>%
-  group_by(AY_FALL, first.treat) %>% summarise(average_k_rank = mean(k_rank, na.rm = TRUE))
+  group_by(AY_FALL, first.treat, EXPOSED) %>% summarise(average_k_rank = mean(k_rank, na.rm = TRUE))
 
 ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank, color = as.factor(first.treat))) +
   geom_line() + # Using geom_line to connect average points over AY_FALL
   geom_point()  + 
   # Optionally add points to highlight the actual averages
-  labs(title = "Average K_Rank by Cohort and Initial Rollout",
-       x = "Cohort",
-       y = "Average K_Rank",
-       color = "Uni Treated in 2004") +
-  theme_minimal() +
-  geom_vline(xintercept = 2000, slope = 0, linetype = "dashed")
-
-# Calculate the average k_rank for each AY_FALL and year_treated
-average_k_rank <- dfdf %>%
-  group_by(AY_FALL, year_treated) %>%
-  summarise(average_k_rank = mean(k_rank, na.rm = TRUE)) %>%
-  ungroup() # Ensure the data is not grouped for plotting
-
-# Plotting the averages
-ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank, color = as.factor(year_treated))) +
-  geom_line() + # Using geom_line to connect average points over AY_FALL
-  geom_point() + # Optionally add points to highlight the actual averages
   labs(title = "Average K_Rank by Cohort and Year Treated",
        x = "Cohort",
        y = "Average K_Rank",
-       color = "Year Treated") +
-  theme_minimal()
-dfdf1$year_joinedFB <-  ifelse(is.na(dfdf1$year_joinedFB), 0, dfdf1$year_joinedFB)
+       color = "College Treated in 2004") +
+  theme_minimal() +
+  geom_vline(xintercept = 2000, linetype = "dashed")
 
-dfdf1 <- dfdf1 %>%
-  mutate(post = case_when(
-    AY_FALL >= 2000 ~ 1, 
-    TRUE ~ 0
-  ))
+ggsave("../docs/figures/average_k_rank_treat_Exposed.pdf", width = 11, height = 8.5, dpi = 300)
 
-dfdf1$year_joinedFB <- (as.numeric(dfdf2$year_joinedFB))
-dfdf1$year_joinedFB <- ifelse(is.na(dfdf2$year_joinedFB), 0,dfdf2$year_joinedFB)
-dfdf1$init.treat <- ifelse(dfdf2$year_joinedFB == 2004 & dfdf2$first.treat == 2004, 1,0)
+dfdf2$compet <- ifelse(dfdf2$barrons <=4, 1, 0)
+average_k_rank <- dfdf2 %>%
+  group_by(AY_FALL, first.treat, compet) %>% summarise(average_k_rank = mean(k_rank, na.rm = TRUE))
 
-dfdf1 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
-dfdf1 %>% filter(UNITID == 100706) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
-dfdf1 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
+ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank, 
+                           color = as.factor(first.treat), 
+                           group = interaction(compet, first.treat),
+                           linetype = as.factor(compet))) +
+  geom_line() + # Using geom_line to connect average points over AY_FALL for each tier and year_treated
+  geom_point() + # Optionally add points to highlight the actual averages
+  labs(title = "Average K_Rank by Cohort, Competitiveness and Year Treated",
+       x = "Cohort",
+       y = "Average K_Rank",
+       color = "College Treated in 2004",
+       linetype = "Classed as Competitive") + # Adding a label for linetype legend
+  theme_minimal() +
+  geom_vline(xintercept = 2000, color = "#00B0B9", linetype = "dashed") 
 
-dfdf2 <- dfdf2 %>% select(UNITID, FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post, 
-                          k_rank, EXPOSED, EXPOSURE_4YR, year_joinedFB)
+ggsave("../docs/figures/average_k_rank_compet.pdf", width = 11, height = 8.5, dpi = 300)
+
+
+# dfdf1$year_joinedFB <-  ifelse(is.na(dfdf1$year_joinedFB), 0, dfdf1$year_joinedFB)
+# 
+# dfdf1 <- dfdf1 %>%
+#   mutate(post = case_when(
+#     AY_FALL >= 2000 ~ 1, 
+#     TRUE ~ 0
+#   ))
+# 
+# dfdf1$year_joinedFB <- (as.numeric(dfdf2$year_joinedFB))
+# dfdf1$year_joinedFB <- ifelse(is.na(dfdf2$year_joinedFB), 0,dfdf2$year_joinedFB)
+# dfdf1$init.treat <- ifelse(dfdf2$year_joinedFB == 2004 & dfdf2$first.treat == 2004, 1,0)
+# 
+# # dfdf1 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
+# # dfdf1 %>% filter(UNITID == 100706) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
+# # dfdf1 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
+# 
+# dfdf2 <- dfdf1 %>% select(UNITID, FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post, 
+#                           k_rank, EXPOSED, EXPOSURE_4YR, year_joinedFB)
 # year = cohort. state = UNITID
 # year_treated = year that cohort had access to fb
 # k_rank rank of student in national cohort
-head(df1)
 
+# Stagegred intro plot ------------------------------------------
 
-average_k_rank <- dfdf2 %>%
-  group_by(AY_FALL, init.treat) %>%
-  summarise(average_k_rank = mean(k_rank, na.rm = TRUE)) %>%
-  ungroup() # Ensure the data is not grouped for plotting
+# # Create a unique identifier for each day and college combination
+# dfdf1 <- df1 %>%
+#   group_by(date, UNITID) %>%
+#   summarise()
+# 
+# # Create a sequence of dates for plotting
+# date_seq <- seq(from = min(dfdf1$date, na.rm = TRUE), to = max(dfdf1$date, na.rm = TRUE), by = "day")
+# 
+# # Calculate the cumulative number of colleges with FB access for each date
+# cumulative_df <- data.frame(date = date_seq)
+# cumulative_df$fb_access <- sapply(cumulative_df$date, function(d) {
+#   sum(dfdf1$date <= d, na.rm = TRUE)
+# })
+# 
+# # Normalizing fb_access to fraction by dividing by the total number of unique colleges
+# total_colleges <- length(unique(dfdf1$UNITID))
+# cumulative_df$fb_access <- cumulative_df$fb_access / total_colleges
+# 
+# # Plotting
+# ggplot(cumulative_df, aes(x = date, y = fb_access)) +
+#   geom_line() +
+#   labs(title = "Staggered Facebook Rollout Across Colleges",
+#        x = "Date",
+#        y = "Fraction of Colleges with FB Access") +
+#   theme_minimal() +
+#   scale_y_continuous(labels = scales::percent_format())
 
-ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank)) +
-  geom_line(aes(color = as.factor(init.treat))) + # Use color to differentiate 'post' status
-  labs(title = "Average K_Rank by Cohort, Post, and Init.Treat Status",
-       x = "Cohort",
-       y = "Average K_Rank",
-       color = "Treat Status",
-       shape = "Init.Treat Status") +
-  theme_minimal() +
-  geom_vline(xintercept = 2000, linetype="dashed", color = "red") # Example vertical line for a significant year
+# 
+# 
+# average_k_rank <- dfdf2 %>%
+#   group_by(AY_FALL, init.treat) %>%
+#   summarise(average_k_rank = mean(k_rank, na.rm = TRUE)) %>%
+#   ungroup() # Ensure the data is not grouped for plotting
 
-dfdf2 %<>% filter(year_joinedFB == 2004 | year_joinedFB == 0)
-
-dfdf2 <- dfdf2 %>%
-  mutate(post = case_when(
-    AY_FALL >= 2000 ~ 1, 
-    TRUE ~ 0
-  ))
-
-dfdf2$year_joinedFB <- ifelse(is.na(dfdf2$year_joinedFB), 0,dfdf2$year_joinedFB)
-dfdf2$init.treat <- ifelse(dfdf2$year_joinedFB == 2004 & dfdf2$first.treat == 2004, 1,0)
-
-dfdf2 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
-dfdf2 %>% filter(UNITID == 101435) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
-dfdf2 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
-
-dfdf2 <- dfdf2 %>% select(UNITID, FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post, 
-                          k_rank, EXPOSED, EXPOSURE_4YR, year_joinedFB)
-# year = cohort. state = UNITID
-# year_treated = year that cohort had access to fb
-# k_rank rank of student in national cohort
-head(df1)
-
-average_k_rank <- dfdf2 %>%
-  group_by(AY_FALL, init.treat) %>%
-  summarise(average_k_rank = mean(k_rank, na.rm = TRUE)) %>%
-  ungroup() # Ensure the data is not grouped for plotting
-
-ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank)) +
-  geom_line(aes(color = as.factor(init.treat))) + # Use color to differentiate 'post' status
-  labs(title = "Average K_Rank by Cohort, Post, and Init.Treat Status",
-       x = "Cohort",
-       y = "Average K_Rank",
-       color = "Treat Status",
-       shape = "Init.Treat Status") +
-  theme_minimal() +
-  geom_vline(xintercept = 2000, linetype="dashed", color = "red") # Example vertical line for a significant year
+# # ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank)) +
+# #   geom_line(aes(color = as.factor(init.treat))) + # Use color to differentiate 'post' status
+# #   labs(title = "Average K_Rank by Cohort, Post, and Init.Treat Status",
+# #        x = "Cohort",
+# #        y = "Average K_Rank",
+# #        color = "Treat Status",
+# #        shape = "Init.Treat Status") +
+# #   theme_minimal() +
+# #   geom_vline(xintercept = 2000, linetype="dashed", color = "red") # Example vertical line for a significant year
+# 
+# dfdf2 %<>% filter(year_joinedFB == 2004 | year_joinedFB == 0)
+# 
+# dfdf2 <- dfdf2 %>%
+#   mutate(post = case_when(
+#     AY_FALL >= 2000 ~ 1, 
+#     TRUE ~ 0
+#   ))
+# 
+# dfdf2$year_joinedFB <- ifelse(is.na(dfdf2$year_joinedFB), 0,dfdf2$year_joinedFB)
+# dfdf2$init.treat <- ifelse(dfdf2$year_joinedFB == 2004 & dfdf2$first.treat == 2004, 1,0)
+# 
+# dfdf2 %>% filter(FBName == "Harvard") %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
+# dfdf2 %>% filter(UNITID == 101435) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
+# dfdf2 %>% filter(UNITID == 243744) %>% select(FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post)
+# 
+# dfdf2 <- dfdf2 %>% select(UNITID, FBName, AY_FALL, DateJoinedFB, year_treated, first.treat, init.treat, post, 
+#                           k_rank, EXPOSED, EXPOSURE_4YR, year_joinedFB)
+# # year = cohort. state = UNITID
+# # year_treated = year that cohort had access to fb
+# # k_rank rank of student in national cohort
+# head(df1)
+# 
+# average_k_rank <- dfdf2 %>%
+#   group_by(AY_FALL, init.treat) %>%
+#   summarise(average_k_rank = mean(k_rank, na.rm = TRUE)) %>%
+#   ungroup() # Ensure the data is not grouped for plotting
+# 
+# ggplot(average_k_rank, aes(x = AY_FALL, y = average_k_rank)) +
+#   geom_line(aes(color = as.factor(init.treat))) + # Use color to differentiate 'post' status
+#   labs(title = "Average K_Rank by Cohort, Post, and Init.Treat Status",
+#        x = "Cohort",
+#        y = "Average K_Rank",
+#        color = "Treat Status",
+#        shape = "Init.Treat Status") +
+#   theme_minimal() +
+#   geom_vline(xintercept = 2000, linetype="dashed", color = "red") # Example vertical line for a significant year
