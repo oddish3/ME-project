@@ -1,3 +1,8 @@
+# NOTE 
+# binscatteR requires Java to be installed on your machine.
+
+
+
 
 # ==============================================================================
 # Social Media and Labour market Outcomes Continuous DiD
