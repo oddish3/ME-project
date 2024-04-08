@@ -280,27 +280,27 @@ cont_did <- function(dy, dose) {
               acrt.overall=acrt.overall))
 }
 
-
-
 cont_did_est <- function(data) {
   # Convert dose and dy using the 'data' argument
   dose <- as.vector(data$EXPOSURE_4YR)
-  dy <- as.vector(data$d_k_rank)
+  dy <- as.vector(data$k_rank)
   
   # First Plot: Histogram of dose
   p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
     geom_histogram()
   
   # Binscatter plot of the change in the outcome over time with respect to the dose
-  binnedout <- binscatter(data=data, x="EXPOSURE_4YR", y="d_k_rank")
+  binnedout <- binscatter(data=data, x="EXPOSURE_4YR", y="k_rank")
   
   # TWFE model
   twfe <- lm(dy ~ dose)
   twfe_summary <- summary(twfe)$coefficients
+  twfe_est <- summary(twfe)$coefficients[2,1]
   
   # Using the cont_did function to estimate the ATT etc.
   cont_res <- cont_did(dy, dose)
-  
+  ATT <- cont_res$att.overall
+  ACRT <- cont_res$acrt.overall
   # Plots as functions of the dose and estimates of ATT etc.
   plot_df <- cont_res$local_effects
   colnames(plot_df) <- c("dose", "att", "acrt")
@@ -341,15 +341,23 @@ cont_did_est <- function(data) {
     ylim(c(0,3)) +
     labs(title="TWFE weights")
   
+  cat("ATT:", ATT)
+  cat("\n")
+  cat("ACRT:", ACRT)
+  cat("\n")
+  cat()
+  cat("TWFE Estimate:", twfe_est)
   # Return a list of all the generated results
-  return(list(histogram=p, binscatter=binnedout, twfe_summary=twfe_summary, 
+  return(list(ACRT = ACRT, ATT = ATT, histogram=p, binscatter=binnedout, twfe_summary=twfe_summary, 
               att_plot=att_plot, acrt_plot=acrt_plot, frq_weights_plot=frq_weights_plot, 
               twfe_weights_plot=twfe_weights_plot))
+  
 }
-
 
 sim_results <- cont_did_est(analysis_sample_simulated)
 
+
+sim_results$ATT
 
 
 # SECTION 3 : CONTINUOUS DIFF IN DIFF ESTIMATION ------------------------------------------
@@ -490,14 +498,6 @@ analysis_sample2002 <- analysis_sample[analysis_sample$AY_FALL <= 2002, ]
 analysis_sample2003 <- analysis_sample[analysis_sample$AY_FALL <= 2003, ]
 analysis_sample2004 <- analysis_sample[analysis_sample$AY_FALL <= 2004, ]
 analysis_sample2005 <- analysis_sample[analysis_sample$AY_FALL <= 2005, ]
-analysis_sample_diff <- analysis_sample %>%
-  group_by(UNITID) %>%
-  mutate(d_k_rank = if_else(AY_FALL == "1999",
-                            k_rank - k_rank[AY_FALL == "2001"][1],
-                            NA_real_)) %>%
-  ungroup() %>%
-  filter(AY_FALL == "2000")
-
 
 cont_did_est <- function(data) {
   # Convert dose and dy using the 'data' argument
@@ -514,10 +514,12 @@ cont_did_est <- function(data) {
   # TWFE model
   twfe <- lm(dy ~ dose)
   twfe_summary <- summary(twfe)$coefficients
+  twfe_est <- summary(twfe)$coefficients[2,1]
   
   # Using the cont_did function to estimate the ATT etc.
   cont_res <- cont_did(dy, dose)
-  
+  ATT <- cont_res$att.overall
+  ACRT <- cont_res$acrt.overall
   # Plots as functions of the dose and estimates of ATT etc.
   plot_df <- cont_res$local_effects
   colnames(plot_df) <- c("dose", "att", "acrt")
@@ -558,10 +560,17 @@ cont_did_est <- function(data) {
     ylim(c(0,3)) +
     labs(title="TWFE weights")
   
+  cat("ATT:", ATT)
+  cat("\n")
+  cat("ACRT:", ACRT)
+  cat("\n")
+  cat()
+  cat("TWFE Estimate:", twfe_est)
   # Return a list of all the generated results
-  return(list(histogram=p, binscatter=binnedout, twfe_summary=twfe_summary, 
+  return(list(ACRT = ACRT, ATT = ATT, histogram=p, binscatter=binnedout, twfe_summary=twfe_summary, 
               att_plot=att_plot, acrt_plot=acrt_plot, frq_weights_plot=frq_weights_plot, 
               twfe_weights_plot=twfe_weights_plot))
+  
 }
 
 results2001 <- cont_did_est(analysis_sample2001)
@@ -569,8 +578,102 @@ results2002 <- cont_did_est(analysis_sample2002)
 results2003 <- cont_did_est(analysis_sample2003)
 results2004 <- cont_did_est(analysis_sample2004)
 results2005 <- cont_did_est(analysis_sample2005)
-results_diff <- cont_did_est(analysis_sample_diff)
 
+analysis_sample_cleaned <- analysis_sample %>%
+  filter(!is.na(k_rank) & !is.na(AY_FALL))
+
+# Calculate the difference in k_rank between 2001 and 1999 for each UNITID
+analysis_sample_diff <- analysis_sample_cleaned %>%
+  group_by(UNITID) %>%
+  summarise(d_k_2001 = first(k_rank[AY_FALL == "2001"]),
+            d_k_1999 = first(k_rank[AY_FALL == "1999"]),
+            .groups = 'drop') %>%
+  mutate(d_k_rank = d_k_2001 - d_k_1999)
+
+# Merge the difference back into the original cleaned dataframe
+analysis_sample_merged <- analysis_sample_cleaned %>%
+  left_join(analysis_sample_diff, by = "UNITID")
+
+analysis_sample_merged <- analysis_sample_merged %>%
+  filter(!is.na(d_k_rank)) %>% filter(AY_FALL == 2000)
+
+cont_did_est <- function(data) {
+  # Convert dose and dy using the 'data' argument
+  dose <- as.vector(data$EXPOSURE_4YR)
+  dy <- as.vector(data$d_k_rank)
+  
+  # First Plot: Histogram of dose
+  p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
+    geom_histogram()
+  
+  # Binscatter plot of the change in the outcome over time with respect to the dose
+  binnedout <- binscatter(data=data, x="EXPOSURE_4YR", y="d_k_rank")
+  
+  # TWFE model
+  twfe <- lm(dy ~ dose)
+  twfe_summary <- summary(twfe)$coefficients
+  twfe_est <- summary(twfe)$coefficients[2,1]
+  
+  # Using the cont_did function to estimate the ATT etc.
+  cont_res <- cont_did(dy, dose)
+  ATT <- cont_res$att.overall
+  ACRT <- cont_res$acrt.overall
+  # Plots as functions of the dose and estimates of ATT etc.
+  plot_df <- cont_res$local_effects
+  colnames(plot_df) <- c("dose", "att", "acrt")
+  
+  att_plot <- ggplot(plot_df, aes(x=dose, y=att)) +
+    geom_hline(yintercept=0, color="red", linetype="dashed") +
+    geom_line() +
+    theme_bw()
+  
+  acrt_plot <- ggplot(plot_df, aes(x=dose, y=acrt)) +
+    geom_hline(yintercept=0, color="red", linetype="dashed") +
+    geom_line() +
+    theme_bw()
+  
+  # Density of the dose
+  dL <- min(dose[dose>0])
+  dU <- max(dose)
+  dose_grid <- seq(dL, dU, length.out=100)
+  frq_weights_plot <- ggplot(data.frame(dose=dose[dose>0]), aes(x=dose)) +
+    geom_density(colour = "darkblue", linewidth = 1.2) +
+    xlim(c(min(dose_grid), max(dose_grid))) +
+    ylab("Density weights") +
+    xlab("Dose") +
+    ylim(c(0,3)) + 
+    labs(title="Density of dose")
+  
+  # TWFE weights
+  twfe_weights <- sapply(dose_grid, cont_twfe_weights, D=dose)
+  plot_df <- cbind.data.frame(twfe_weights, dose_grid)
+  
+  twfe_weights_plot <- ggplot(data=plot_df,
+                              mapping=aes(x = dose_grid, y = twfe_weights)) +
+    geom_line(colour = "darkblue", linewidth = 1.2) +
+    xlim(c(min(dose_grid), max(dose_grid))) +
+    ylab("TWFE weights") +
+    xlab("Dose") +
+    geom_vline(xintercept = mean(dose), colour="black", linewidth = 0.5, linetype = "dotted") +
+    ylim(c(0,3)) +
+    labs(title="TWFE weights")
+  
+  cat("ATT:", ATT)
+  cat("\n")
+  cat("ACRT:", ACRT)
+  cat("\n")
+  cat()
+  cat("TWFE Estimate:", twfe_est)
+  # Return a list of all the generated results
+  return(list(ACRT = ACRT, ATT = ATT, histogram=p, binscatter=binnedout, twfe_summary=twfe_summary, 
+              att_plot=att_plot, acrt_plot=acrt_plot, frq_weights_plot=frq_weights_plot, 
+              twfe_weights_plot=twfe_weights_plot))
+  
+}
+
+results_diff <- cont_did_est(analysis_sample_merged)
+
+# save(results2001, results2002, results2003, results2004, results2005, results_diff, file = "results_cont_did.RData")
 
 
 # SECTION 4 : FINAL SECTION : Figures ----------------------------------------------------------------
