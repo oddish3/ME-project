@@ -193,7 +193,7 @@ pacman::p_load(devtools, remotes)
 if (!"binscatteR" %in% rownames(installed.packages())) {
   remotes::install_github("shommazumder/binscatteR")
 }
-pacman::p_load(ggplot2, readxl, truncnorm, np)
+pacman::p_load(ggplot2, readxl, truncnorm, np, binscatteR)
 
 # Set seed for reproducibility
 set.seed(42)
@@ -371,7 +371,7 @@ twfe_weights_plot
 
 rm(list=ls())
 
-pacman::pload(dplyr, haven, magrittr, tidyverse, fixest, did, broom, fastDummies, sandwich, lmtest)
+pacman::p_load(dplyr, haven, magrittr, tidyverse, fixest, did, broom, fastDummies, sandwich, lmtest)
 
 analysis_sample <- read_dta("../original_study/labour-market/data/output/analysis_sample.dta") %>% 
   filter(twfe_sample == 1 #& late_adopter == 0
@@ -493,9 +493,16 @@ cont_did <- function(dy, dose) {
               att.overall=att.overall,
               acrt.overall=acrt.overall))
 }
+
+
+# break down by years treated ----------------------------------------------------------
+
+# 1 years treated ----------------------------------------------------------
+
+analysis_sample1 <- analysis_sample[analysis_sample$EXPOSURE_4YR <=1, ]
 # plotting histogram
-dose <- as.vector(analysis_sample$EXPOSURE_4YR)
-dy <- as.vector(analysis_sample$k_rank)
+dose <- as.vector(analysis_sample1$EXPOSURE_4YR)
+dy <- as.vector(analysis_sample1$k_rank)
 
 p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
   geom_histogram()
@@ -503,9 +510,233 @@ p
 
 # The histogram show that a non-trivial fraction of units are untreated whist there is no real
 # pattern to the rest, bar the bunching at 4 years.
-library(binscatteR)
 # binscatter plot of the change in the outcome over time with respect to the dose
-binnedout <- binscatter(data=analysis_sample, x="EXPOSURE_4YR", y="k_rank")
+binnedout <- binscatter(data=analysis_sample1, x="EXPOSURE_4YR", y="k_rank")
+binnedout
+
+twfe <- lm(dy ~ dose)
+summary(twfe)$coefficients
+
+# using the cont_did function provided above to estimate the ATT etc
+#Plot and as functions of the dose and provide estimates of ATT etc
+
+cont_res <- cont_did(dy, dose)
+
+cont_res$att.overall
+cont_res$acrt.overall
+
+plot_df <- cont_res$local_effects
+
+colnames(plot_df) <- c("dose", "att", "acrt")
+ggplot(plot_df, aes(x=dose, att)) +
+  geom_hline(yintercept=0, color="red", linetype="dashed") +
+  geom_line() +
+  theme_bw()
+
+ggplot(plot_df, aes(x=dose, acrt)) +
+  geom_hline(yintercept=0, color="red", linetype="dashed") +
+  geom_line() +
+  theme_bw()
+
+dL <- min(dose[dose>0])
+dU <- max(dose)
+# density of the dose
+dose_grid <- seq(dL, dU, length.out=100)
+frq_weights_plot <- ggplot(data.frame(dose=dose[dose>0]), aes(x=dose)) +
+  geom_density(colour = "darkblue", linewidth = 1.2) +
+  xlim(c(min(dose_grid), max(dose_grid)))+
+  ylab("Density weights") +
+  xlab("Dose") +
+  ylim(c(0,3)) + 
+  labs(title="Density of dose")
+frq_weights_plot
+
+twfe_weights <- sapply(dose_grid, cont_twfe_weights, D=dose)
+
+plot_df <- cbind.data.frame(twfe_weights, dose_grid)
+
+twfe_weights_plot <- ggplot(data=plot_df,
+                            mapping=aes(x = dose_grid,
+                                        y = twfe_weights)) +
+  geom_line(colour = "darkblue", linewidth = 1.2) +
+  xlim(c(min(dose_grid),
+         max(dose_grid)))+
+  ylab("TWFE weights") +
+  xlab("Dose") +
+  geom_vline(xintercept = mean(dose),
+             colour="black",
+             linewidth = 0.5,
+             linetype = "dotted") +
+  ylim(c(0,3)) +
+  labs(title="TWFE weights")
+
+twfe_weights_plot
+
+# year treated 2 ----------------------------------------------------------
+analysis_sample1 <- analysis_sample[analysis_sample$EXPOSURE_4YR <=2, ]
+# plotting histogram
+dose <- as.vector(analysis_sample1$EXPOSURE_4YR)
+dy <- as.vector(analysis_sample1$k_rank)
+
+p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
+  geom_histogram()
+p
+
+# The histogram show that a non-trivial fraction of units are untreated whist there is no real
+# pattern to the rest, bar the bunching at 4 years.
+# binscatter plot of the change in the outcome over time with respect to the dose
+binnedout <- binscatter(data=analysis_sample1, x="EXPOSURE_4YR", y="k_rank")
+binnedout
+
+twfe <- lm(dy ~ dose)
+summary(twfe)$coefficients
+
+# using the cont_did function provided above to estimate the ATT etc
+#Plot and as functions of the dose and provide estimates of ATT etc
+
+cont_res <- cont_did(dy, dose)
+
+cont_res$att.overall
+cont_res$acrt.overall
+
+plot_df <- cont_res$local_effects
+
+colnames(plot_df) <- c("dose", "att", "acrt")
+ggplot(plot_df, aes(x=dose, att)) +
+  geom_hline(yintercept=0, color="red", linetype="dashed") +
+  geom_line() +
+  theme_bw()
+
+ggplot(plot_df, aes(x=dose, acrt)) +
+  geom_hline(yintercept=0, color="red", linetype="dashed") +
+  geom_line() +
+  theme_bw()
+
+dL <- min(dose[dose>0])
+dU <- max(dose)
+# density of the dose
+dose_grid <- seq(dL, dU, length.out=100)
+frq_weights_plot <- ggplot(data.frame(dose=dose[dose>0]), aes(x=dose)) +
+  geom_density(colour = "darkblue", linewidth = 1.2) +
+  xlim(c(min(dose_grid), max(dose_grid)))+
+  ylab("Density weights") +
+  xlab("Dose") +
+  ylim(c(0,3)) + 
+  labs(title="Density of dose")
+frq_weights_plot
+
+twfe_weights <- sapply(dose_grid, cont_twfe_weights, D=dose)
+
+plot_df <- cbind.data.frame(twfe_weights, dose_grid)
+
+twfe_weights_plot <- ggplot(data=plot_df,
+                            mapping=aes(x = dose_grid,
+                                        y = twfe_weights)) +
+  geom_line(colour = "darkblue", linewidth = 1.2) +
+  xlim(c(min(dose_grid),
+         max(dose_grid)))+
+  ylab("TWFE weights") +
+  xlab("Dose") +
+  geom_vline(xintercept = mean(dose),
+             colour="black",
+             linewidth = 0.5,
+             linetype = "dotted") +
+  ylim(c(0,3)) +
+  labs(title="TWFE weights")
+
+twfe_weights_plot
+
+
+# year treated 3 ----------------------------------------------------------
+
+analysis_sample1 <- analysis_sample[analysis_sample$EXPOSURE_4YR <=3, ]
+# plotting histogram
+dose <- as.vector(analysis_sample1$EXPOSURE_4YR)
+dy <- as.vector(analysis_sample1$k_rank)
+
+p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
+  geom_histogram()
+p
+
+# The histogram show that a non-trivial fraction of units are untreated whist there is no real
+# pattern to the rest, bar the bunching at 4 years.
+# binscatter plot of the change in the outcome over time with respect to the dose
+binnedout <- binscatter(data=analysis_sample1, x="EXPOSURE_4YR", y="k_rank")
+binnedout
+
+twfe <- lm(dy ~ dose)
+summary(twfe)$coefficients
+
+# using the cont_did function provided above to estimate the ATT etc
+#Plot and as functions of the dose and provide estimates of ATT etc
+
+cont_res <- cont_did(dy, dose)
+
+cont_res$att.overall
+cont_res$acrt.overall
+
+plot_df <- cont_res$local_effects
+
+colnames(plot_df) <- c("dose", "att", "acrt")
+ggplot(plot_df, aes(x=dose, att)) +
+  geom_hline(yintercept=0, color="red", linetype="dashed") +
+  geom_line() +
+  theme_bw()
+
+ggplot(plot_df, aes(x=dose, acrt)) +
+  geom_hline(yintercept=0, color="red", linetype="dashed") +
+  geom_line() +
+  theme_bw()
+
+dL <- min(dose[dose>0])
+dU <- max(dose)
+# density of the dose
+dose_grid <- seq(dL, dU, length.out=100)
+frq_weights_plot <- ggplot(data.frame(dose=dose[dose>0]), aes(x=dose)) +
+  geom_density(colour = "darkblue", linewidth = 1.2) +
+  xlim(c(min(dose_grid), max(dose_grid)))+
+  ylab("Density weights") +
+  xlab("Dose") +
+  ylim(c(0,3)) + 
+  labs(title="Density of dose")
+frq_weights_plot
+
+twfe_weights <- sapply(dose_grid, cont_twfe_weights, D=dose)
+
+plot_df <- cbind.data.frame(twfe_weights, dose_grid)
+
+twfe_weights_plot <- ggplot(data=plot_df,
+                            mapping=aes(x = dose_grid,
+                                        y = twfe_weights)) +
+  geom_line(colour = "darkblue", linewidth = 1.2) +
+  xlim(c(min(dose_grid),
+         max(dose_grid)))+
+  ylab("TWFE weights") +
+  xlab("Dose") +
+  geom_vline(xintercept = mean(dose),
+             colour="black",
+             linewidth = 0.5,
+             linetype = "dotted") +
+  ylim(c(0,3)) +
+  labs(title="TWFE weights")
+
+twfe_weights_plot
+
+# years treated 4 full sample ----------------------------------------------------------
+
+analysis_sample1 <- analysis_sample[analysis_sample$EXPOSURE_4YR <=4, ]
+# plotting histogram
+dose <- as.vector(analysis_sample1$EXPOSURE_4YR)
+dy <- as.vector(analysis_sample1$k_rank)
+
+p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
+  geom_histogram()
+p
+
+# The histogram show that a non-trivial fraction of units are untreated whist there is no real
+# pattern to the rest, bar the bunching at 4 years.
+# binscatter plot of the change in the outcome over time with respect to the dose
+binnedout <- binscatter(data=analysis_sample1, x="EXPOSURE_4YR", y="k_rank")
 binnedout
 
 twfe <- lm(dy ~ dose)
@@ -569,10 +800,7 @@ twfe_weights_plot
 
 
 
-head(analysis_sample)
-
-
-#### figures -----
+#### figures ----------------------------------------------------------------
 
 
 
