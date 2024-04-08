@@ -797,6 +797,92 @@ twfe_weights_plot <- ggplot(data=plot_df,
 
 twfe_weights_plot
 
+## k_rank_diff calc ----------------------------------------------------------
+one <- analysis_sample %>%
+  group_by(UNITID) %>%
+  mutate(d_k_rank = if_else(AY_FALL == "1999",
+                            k_rank - k_rank[AY_FALL == "2001"][1],
+                            NA_real_)) %>%
+  ungroup() %>%
+  filter(AY_FALL == "2000")
+
+# plotting histogram
+dose <- as.vector(one$EXPOSURE_4YR)
+dy <- as.vector(one$k_rank)
+
+p <- ggplot(data.frame(dose=dose), aes(x=dose)) + 
+  geom_histogram()
+p
+
+# The histogram show that a non-trivial fraction of units are untreated whist there is no real
+# pattern to the rest, bar the bunching at 4 years.
+# binscatter plot of the change in the outcome over time with respect to the dose
+binnedout <- binscatter(data=one, x="EXPOSURE_4YR", y="k_rank")
+binnedout
+
+twfe <- lm(dy ~ dose)
+summary(twfe)$coefficients
+
+# using the cont_did function provided above to estimate the ATT etc
+#Plot and as functions of the dose and provide estimates of ATT etc
+
+cont_res <- cont_did(dy, dose)
+
+cont_res$att.overall
+cont_res$acrt.overall
+
+plot_df <- cont_res$local_effects
+
+colnames(plot_df) <- c("dose", "att", "acrt")
+ggplot(plot_df, aes(x=dose, att)) +
+  geom_hline(yintercept=0, color="red", linetype="dashed") +
+  geom_line() +
+  theme_bw()
+
+ggplot(plot_df, aes(x=dose, acrt)) +
+  geom_hline(yintercept=0, color="red", linetype="dashed") +
+  geom_line() +
+  theme_bw()
+
+dL <- min(dose[dose>0])
+dU <- max(dose)
+# density of the dose
+dose_grid <- seq(dL, dU, length.out=100)
+frq_weights_plot <- ggplot(data.frame(dose=dose[dose>0]), aes(x=dose)) +
+  geom_density(colour = "darkblue", linewidth = 1.2) +
+  xlim(c(min(dose_grid), max(dose_grid)))+
+  ylab("Density weights") +
+  xlab("Dose") +
+  ylim(c(0,3)) + 
+  labs(title="Density of dose")
+frq_weights_plot
+
+twfe_weights <- sapply(dose_grid, cont_twfe_weights, D=dose)
+
+plot_df <- cbind.data.frame(twfe_weights, dose_grid)
+
+twfe_weights_plot <- ggplot(data=plot_df,
+                            mapping=aes(x = dose_grid,
+                                        y = twfe_weights)) +
+  geom_line(colour = "darkblue", linewidth = 1.2) +
+  xlim(c(min(dose_grid),
+         max(dose_grid)))+
+  ylab("TWFE weights") +
+  xlab("Dose") +
+  geom_vline(xintercept = mean(dose),
+             colour="black",
+             linewidth = 0.5,
+             linetype = "dotted") +
+  labs(title="TWFE weights")
+
+twfe_weights_plot
+
+
+
+
+
+
+
 
 
 
